@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/hjmsano/frostpillar-btree/compare/v0.2.1...v0.2.2) (2026-04-04)
+
+
+### Bug Fixes
+
+* switch CI exclude condition and deleted unnecessary test ([fb2fad7](https://github.com/hjmsano/frostpillar-btree/commit/fb2fad7c951cbac57b4669a990ab3c9ba6353888))
+
 ## [0.2.1](https://github.com/hjmsano/frostpillar-btree/compare/v0.2.0...v0.2.1) (2026-04-04)
 
 
