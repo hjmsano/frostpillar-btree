@@ -1,8 +1,8 @@
 # Spec: Release-Driven CI/CD and Publish
 
 Status: Active
-Version: 2.5
-Last Updated: 2026-03-24
+Version: 2.6
+Last Updated: 2026-04-04
 
 ## 1. Scope
 
@@ -10,7 +10,7 @@ This document defines workflow contracts for release automation in `.github/work
 
 In scope:
 
-- release trigger from `release` merge via Release Please
+- release trigger from `main` push via Release Please
 - automated release PR creation and version/changelog updates
 - package verification and build
 - browser bundle artifact generation and attachment
@@ -26,20 +26,19 @@ Out of scope:
 
 ## 2. Trigger Contract
 
-- Pushing to `release` MUST trigger `ci-release.yml`.
+- Pushing to `main` MUST trigger `ci-release.yml`.
 - `ci-release.yml` MUST run Release Please first.
-- `ci-release.yml` MUST configure Release Please target branch as `release`.
-- Repository default branch MUST remain `main`.
+- `ci-release.yml` MUST configure Release Please target branch as `main`.
 - Version tag and GitHub Release creation MUST be performed by Release Please after the release PR is merged.
 - Build/package publish and browser asset upload MUST run only when Release Please reports `release_created = true`.
 - Draft release flows created manually from GitHub UI are not required.
 
 ## 3. Release Workflow Contract (`.github/workflows/ci-release.yml`)
 
-On `release` push, the workflow MUST:
+On `main` push, the workflow MUST:
 
 1. execute `googleapis/release-please-action` to manage release PR and release creation
-2. configure Release Please with `target-branch: release`
+2. configure Release Please with `target-branch: main`
 3. run build/publish steps only when `steps.release.outputs.release_created == 'true'`
 4. install dependencies using frozen lockfile
 5. run `pnpm check` (subsumes typecheck, lint, test, and textlint — no separate `pnpm test` step)

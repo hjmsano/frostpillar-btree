@@ -1,6 +1,6 @@
 # ADR 0013: Adopt Release Please with release branch target and main default branch
 
-- Status: Accepted
+- Status: Superseded by [0022](./0022_consolidate_release_automation_onto_main_branch.md)
 - Date: 2026-03-13
 
 ## Context

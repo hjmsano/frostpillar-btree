@@ -898,7 +898,7 @@ pnpm install
 
 - デフォルトブランチは `main` です。
 - リリースは [Release Please](https://github.com/googleapis/release-please)（`.github/workflows/ci-release.yml`）で管理します。
-- Conventional Commits 互換の PR を `release` ブランチにマージすると、Release Please がバージョン更新 PR を `release` に対して作成・更新します。
+- Conventional Commits 互換の PR を `main` にマージすると、Release Please がバージョン更新 PR を `main` に対して作成・更新します。
 - バージョン更新 PR をマージすると、GitHub Release 作成、ブラウザバンドルのアップロード（`frostpillar-btree.min.js` および `frostpillar-btree-core.min.js`）、GitHub Packages への publish が実行されます。
 
 ### ドキュメント
