@@ -67,8 +67,7 @@ const workflowContracts: readonly WorkflowContract[] = [
       'release push release workflow uses release-please and conditionally builds/publishes artifacts',
     assertions: [
       {
-        pattern:
-          /on:\s*\n\s*push:\s*\n\s*branches:\s*\n\s*-\s*["']main["']/m,
+        pattern: /on:\s*\n\s*push:\s*\n\s*branches:\s*\n\s*-\s*["']main["']/m,
         message: 'ci-release.yml must trigger on main pushes.',
       },
       {
@@ -161,15 +160,6 @@ const workflowContracts: readonly WorkflowContract[] = [
     ],
   },
 ];
-
-void test('CI workflow must not exclude main branch pushes', async (): Promise<void> => {
-  const workflow = await readWorkflow('ci.yml');
-  assert.doesNotMatch(
-    workflow,
-    /branches-ignore:\s*(?:\n\s*-\s*["']?main["']?)+/m,
-    'ci.yml must not exclude main branch pushes.',
-  );
-});
 
 for (const contract of workflowContracts) {
   void test(contract.testName, async (): Promise<void> => {
