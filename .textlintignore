@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.pnpm-store/
+.tmp-test-dist/
+AGENTS.md
+CLAUDE.md

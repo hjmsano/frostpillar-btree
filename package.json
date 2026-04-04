@@ -1,0 +1,81 @@
+{
+  "name": "@frostpillar/frostpillar-btree",
+  "version": "0.1.2",
+  "description": "A tiny, zero-dependency in-memory B+ tree for TypeScript, Node.js, and browser JavaScript.",
+  "type": "module",
+  "author": "Hajime Sano",
+  "main": "./dist/index.cjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js",
+      "require": "./dist/core.cjs"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.cjs",
+    "dist/**/*.d.ts",
+    "README.md",
+    "README-JA.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && pnpm build:esm && pnpm build:cjs && pnpm build:types",
+    "build:esm": "esbuild src/index.ts src/core.ts --bundle --splitting --format=esm --platform=neutral --target=es2022 --tsconfig=tsconfig.bundle.json --outdir=dist",
+    "build:cjs": "esbuild src/index.ts src/core.ts --bundle --platform=node --format=cjs --target=es2022 --tsconfig=tsconfig.bundle.json --outdir=dist --out-extension:.js=.cjs",
+    "build:types": "tsc --project tsconfig.build.json",
+    "build:bundle": "esbuild src/index.ts --bundle --minify --target=es2020 --tsconfig=tsconfig.bundle.json --platform=browser --format=iife --global-name=FrostpillarBTree --outfile=dist/frostpillar-btree.min.js",
+    "build:bundle:core": "esbuild src/InMemoryBTree.ts --bundle --minify --target=es2020 --tsconfig=tsconfig.bundle.json --platform=browser --format=iife --global-name=FrostpillarBTreeCore --outfile=dist/frostpillar-btree-core.min.js",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "textlint": "textlint \"**/*.md\"",
+    "textlint:fix": "textlint \"**/*.md\" --fix",
+    "format:md": "pnpm textlint:fix",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm textlint",
+    "test": "node ./scripts/run-tests.mjs",
+    "test:coverage": "node ./scripts/run-tests.mjs --coverage",
+    "bench": "node ./scripts/run-benchmarks.mjs",
+    "typecheck": "tsc --project tsconfig.typecheck.json"
+  },
+  "keywords": [
+    "btree",
+    "b-plus-tree",
+    "in-memory",
+    "typescript",
+    "lightweight"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hjmsano/frostpillar-btree.git"
+  },
+  "bugs": "https://github.com/hjmsano/frostpillar-btree/issues",
+  "homepage": "https://github.com/hjmsano/frostpillar-btree#readme",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.56.1",
+    "@typescript-eslint/parser": "^8.56.1",
+    "esbuild": "^0.27.3",
+    "eslint": "^10.0.3",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.2.5",
+    "textlint": "^15.5.2",
+    "textlint-rule-preset-ja-technical-writing": "^12.0.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.1"
+  },
+  "packageManager": "pnpm@10.30.3"
+}

@@ -1,0 +1,11 @@
+# Dependencies
+/node_modules
+/.pnpm-store
+/.tmp-test-dist
+
+# Build artifacts
+/dist
+
+# Logs
+logs
+*.log
