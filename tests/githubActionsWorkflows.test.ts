@@ -68,8 +68,8 @@ const workflowContracts: readonly WorkflowContract[] = [
     assertions: [
       {
         pattern:
-          /on:\s*\n\s*push:\s*\n\s*branches:\s*\n\s*-\s*["']release["']/m,
-        message: 'ci-release.yml must trigger on release pushes.',
+          /on:\s*\n\s*push:\s*\n\s*branches:\s*\n\s*-\s*["']main["']/m,
+        message: 'ci-release.yml must trigger on main pushes.',
       },
       {
         pattern:
@@ -87,9 +87,9 @@ const workflowContracts: readonly WorkflowContract[] = [
           'ci-release.yml must pin googleapis/release-please-action to a full commit SHA.',
       },
       {
-        pattern: /target-branch:\s*["']release["']/,
+        pattern: /target-branch:\s*["']main["']/,
         message:
-          'ci-release.yml must set Release Please target-branch to release.',
+          'ci-release.yml must set Release Please target-branch to main.',
       },
       {
         pattern:

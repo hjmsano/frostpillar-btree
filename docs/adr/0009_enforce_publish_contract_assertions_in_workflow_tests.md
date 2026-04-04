@@ -6,7 +6,7 @@ Last Updated: 2026-03-26
 
 ## Context
 
-The active release workflow runs on push to `release` and uses Release Please to create releases and gate publish steps.
+The active release workflow runs on push to `main` and uses Release Please to create releases and gate publish steps.
 This ADR now aligns with the workflow architecture formalized in ADR-0013.
 The existing contract test coverage verified trigger, quality checks, build, and release artifact upload, but did not verify publish guarantees.
 

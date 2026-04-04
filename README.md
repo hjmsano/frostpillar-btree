@@ -898,7 +898,7 @@ pnpm install
 
 - The default branch is `main`.
 - Releases are managed by [Release Please](https://github.com/googleapis/release-please) via `.github/workflows/ci-release.yml`.
-- Merge conventional-commit PRs into the `release` branch. Release Please opens/updates a version-bump PR against `release`.
+- Merge conventional-commit PRs into `main`. Release Please opens/updates a version-bump PR against `main`.
 - Merging the version-bump PR triggers: GitHub Release creation, browser bundle uploads (`frostpillar-btree.min.js` and `frostpillar-btree-core.min.js`), and GitHub Packages publish.
 
 ### Documentation
