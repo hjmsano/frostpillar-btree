@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/hjmsano/frostpillar-btree/compare/v0.2.2...v0.2.3) (2026-04-05)
+
+
+### Bug Fixes
+
+* Update the package destination in Docs ([2a6915f](https://github.com/hjmsano/frostpillar-btree/commit/2a6915f2f31b123f9b6dc8db608dbfd5046fd252))
+
 ## [0.2.2](https://github.com/hjmsano/frostpillar-btree/compare/v0.2.1...v0.2.2) (2026-04-04)
 
 
