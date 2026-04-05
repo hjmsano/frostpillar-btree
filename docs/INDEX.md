@@ -17,4 +17,4 @@ This repository provides a standalone, in-memory B+ tree component for JavaScrip
 - ESLint docs: <https://eslint.org/docs/latest/>
 - Prettier docs: <https://prettier.io/docs/>
 - GitHub Actions workflow syntax: <https://docs.github.com/actions/using-workflows/workflow-syntax-for-github-actions>
-- GitHub Packages npm registry: <https://docs.github.com/packages/working-with-a-github-packages-registry/working-with-the-npm-registry>
+- npm publishing docs: <https://docs.npmjs.com/creating-and-publishing-scoped-public-packages>

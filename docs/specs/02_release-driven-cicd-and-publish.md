@@ -1,8 +1,8 @@
 # Spec: Release-Driven CI/CD and Publish
 
 Status: Active
-Version: 2.6
-Last Updated: 2026-04-04
+Version: 2.7
+Last Updated: 2026-04-06
 
 ## 1. Scope
 
@@ -16,12 +16,10 @@ In scope:
 - browser bundle artifact generation and attachment
 - browser bundle environment contract (`ES2020` + `moduleResolution: bundler`)
 - README browser usage sample contract (`README.md`, `README-JA.md`)
-- GitHub Packages publish with owner-scoped package name
+- npm publish with owner-scoped package name
 - hybrid delivery contract (GitHub Release bundle + npm package publish)
 
 Out of scope:
-
-- npmjs.com publish
 - custom release-note authoring beyond generated notes
 
 ## 2. Trigger Contract
@@ -79,11 +77,11 @@ Required auth/permissions:
 
 - `permissions.contents: write`
 - `permissions.pull-requests: write`
-- `permissions.packages: write`
+- `permissions.id-token: write`
 - Release Please token MUST be `${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}`
 - upload to GitHub Release uses `GH_TOKEN=${{ secrets.GITHUB_TOKEN }}`
 - setup-node uses `registry-url: https://registry.npmjs.org`
-- publish uses `NODE_AUTH_TOKEN=${{ secrets.GITHUB_TOKEN }}`
+- publish uses `NODE_AUTH_TOKEN=${{ secrets.NPM_TOKEN }}`
 - if only `GITHUB_TOKEN` is used for Release Please, repository settings MUST allow GitHub Actions to create pull requests
 
 ## 4. CI Workflow Contract (`.github/workflows/ci.yml`)
@@ -100,4 +98,4 @@ Required auth/permissions:
 - https://github.com/googleapis/release-please-action
 - https://docs.github.com/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches
 - https://docs.github.com/actions/security-for-github-actions/security-guides/automatic-token-authentication
-- https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry
+- https://docs.npmjs.com/creating-and-publishing-scoped-public-packages
