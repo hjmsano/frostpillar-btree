@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.4](https://github.com/hjmsano/frostpillar-btree/compare/v0.2.3...v0.2.4) (2026-04-05)
+
+
+### Bug Fixes
+
+* switch CI exclude condition and deleted unnecessary test ([fb2fad7](https://github.com/hjmsano/frostpillar-btree/commit/fb2fad7c951cbac57b4669a990ab3c9ba6353888))
+* Switched release trigger branch ([3afbdf9](https://github.com/hjmsano/frostpillar-btree/commit/3afbdf97246d86baf22e0acff0d186459bebc196))
+* Update the package destination in Docs ([2a6915f](https://github.com/hjmsano/frostpillar-btree/commit/2a6915f2f31b123f9b6dc8db608dbfd5046fd252))
+
 ## [0.2.3](https://github.com/hjmsano/frostpillar-btree/compare/v0.2.2...v0.2.3) (2026-04-05)
 
 
