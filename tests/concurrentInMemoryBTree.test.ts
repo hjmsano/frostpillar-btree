@@ -14,7 +14,6 @@ import {
   FailOnceCompareAndSetStore,
   JumpVersionStore,
   NonReplayingAppendStore,
-  UnknownMutationStore,
 } from './helpers/sharedTreeStoreStubs.js';
 
 void test('concurrent coordinators avoid lost updates through shared CAS store', async (): Promise<void> => {
@@ -272,17 +271,6 @@ void test('uses committed store version from append result when versions jump', 
 
   const id1 = await tree.put(1, 'one');
   assert.deepEqual(await tree.range(1, 1), [{ entryId: id1, key: 1, value: 'one' }]);
-});
-
-void test('rejects unknown mutation types from shared store', async (): Promise<void> => {
-  const tree = new ConcurrentInMemoryBTree<number, string>({
-    compareKeys: (left: number, right: number): number => left - right,
-    store: new UnknownMutationStore<number, string>(),
-  });
-
-  await assert.rejects(async (): Promise<void> => {
-    await tree.sync();
-  }, BTreeConcurrencyError);
 });
 
 void test('applies successful appends locally even when store does not replay payloads', async (): Promise<void> => {

@@ -200,24 +200,14 @@ export class InMemoryBTree<TKey, TValue> {
   }
 
   public *keys(): IterableIterator<TKey> {
-    let leaf: LeafNode<TKey, TValue> | null = this.state.leftmostLeaf;
-    while (leaf !== null) {
-      const count = leafEntryCount(leaf);
-      for (let i = 0; i < count; i += 1) {
-        yield leafEntryAt(leaf, i).key;
-      }
-      leaf = leaf.next;
+    for (const entry of this.entries()) {
+      yield entry.key;
     }
   }
 
   public *values(): IterableIterator<TValue> {
-    let leaf: LeafNode<TKey, TValue> | null = this.state.leftmostLeaf;
-    while (leaf !== null) {
-      const count = leafEntryCount(leaf);
-      for (let i = 0; i < count; i += 1) {
-        yield leafEntryAt(leaf, i).value;
-      }
-      leaf = leaf.next;
+    for (const entry of this.entries()) {
+      yield entry.value;
     }
   }
 

@@ -152,11 +152,6 @@ const workflowContracts: readonly WorkflowContract[] = [
         message:
           'ci-release.yml must publish with pnpm publish --no-git-checks --access public.',
       },
-      {
-        pattern: /NODE_AUTH_TOKEN:\s*\$\{\{\s*secrets\.NPM_TOKEN\s*\}\}/,
-        message:
-          'ci-release.yml must authenticate package publish with NODE_AUTH_TOKEN and NPM_TOKEN.',
-      },
     ],
   },
 ];

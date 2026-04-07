@@ -24,29 +24,6 @@ export interface BTreeJSON<TKey, TValue> {
   entries: [TKey, TValue][];
 }
 
-const walkLeafEntries = <TKey, TValue, TResult>(
-  state: BTreeState<TKey, TValue>,
-  mapper: (key: TKey, value: TValue) => TResult,
-): TResult[] => {
-  const results = new Array<TResult>(state.entryCount);
-  let leaf: LeafNode<TKey, TValue> | null = state.leftmostLeaf;
-  let writeIdx = 0;
-  while (leaf !== null) {
-    const count = leafEntryCount(leaf);
-    for (let i = 0; i < count; i += 1) {
-      const e = leafEntryAt(leaf, i);
-      results[writeIdx++] = mapper(e.key, e.value);
-    }
-    leaf = leaf.next;
-  }
-  return results;
-};
-
-export const collectEntryPairs = <TKey, TValue>(
-  state: BTreeState<TKey, TValue>,
-): { key: TKey; value: TValue }[] =>
-  walkLeafEntries(state, (key, value) => ({ key, value }));
-
 export const buildConfigFromState = <TKey, TValue>(
   state: BTreeState<TKey, TValue>,
 ): InMemoryBTreeConfig<TKey> => {

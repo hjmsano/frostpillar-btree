@@ -58,6 +58,57 @@ export const assertNeverMutation = (mutation: never): never => {
   );
 };
 
+export const validateMutationBatch = <TKey, TValue>(
+  mutations: BTreeMutation<TKey, TValue>[],
+  expectedConfigFingerprint?: string,
+): void => {
+  for (const mutation of mutations) {
+    if (typeof mutation !== 'object' || mutation === null) {
+      throw new BTreeConcurrencyError('Malformed mutation: expected an object.');
+    }
+    const m = mutation as Record<string, unknown>;
+    switch (m.type) {
+      case 'init':
+        if (typeof m.configFingerprint !== 'string') {
+          throw new BTreeConcurrencyError('Malformed init mutation: missing configFingerprint.');
+        }
+        if (expectedConfigFingerprint !== undefined && m.configFingerprint !== expectedConfigFingerprint) {
+          throw new BTreeConcurrencyError(
+            'Config mismatch: store peers must share identical tree config.',
+          );
+        }
+        break;
+      case 'put':
+        if (!('key' in m) || !('value' in m)) {
+          throw new BTreeConcurrencyError('Malformed put mutation: missing key or value.');
+        }
+        break;
+      case 'remove':
+        if (!('key' in m)) {
+          throw new BTreeConcurrencyError('Malformed remove mutation: missing key.');
+        }
+        break;
+      case 'removeById':
+        if (!('entryId' in m)) {
+          throw new BTreeConcurrencyError('Malformed removeById mutation: missing entryId.');
+        }
+        break;
+      case 'updateById':
+        if (!('entryId' in m) || !('value' in m)) {
+          throw new BTreeConcurrencyError('Malformed updateById mutation: missing entryId or value.');
+        }
+        break;
+      case 'popFirst':
+      case 'popLast':
+        break;
+      default:
+        throw new BTreeConcurrencyError(
+          `Unsupported mutation type from shared store: ${String(m.type)}`,
+        );
+    }
+  }
+};
+
 export const normalizeMaxRetries = (value: number | undefined): number => {
   if (value === undefined) {
     return DEFAULT_MAX_RETRIES;
