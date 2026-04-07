@@ -66,6 +66,79 @@ export const assertNeverMutation = (mutation: never): never => {
   );
 };
 
+const validatePutManyEntries = (entries: unknown[]): void => {
+  for (const entry of entries) {
+    if (typeof entry !== 'object' || entry === null || !('key' in entry) || !('value' in entry)) {
+      throw new BTreeConcurrencyError('Malformed putMany mutation: each entry must have key and value.');
+    }
+  }
+};
+
+const validateInitMutation = (
+  m: Record<string, unknown>,
+  expectedConfigFingerprint: string | undefined,
+): void => {
+  if (typeof m.configFingerprint !== 'string') {
+    throw new BTreeConcurrencyError('Malformed init mutation: missing configFingerprint.');
+  }
+  if (expectedConfigFingerprint !== undefined && m.configFingerprint !== expectedConfigFingerprint) {
+    throw new BTreeConcurrencyError(
+      'Config mismatch: store peers must share identical tree config.',
+    );
+  }
+};
+
+const validateSingleMutation = (
+  m: Record<string, unknown>,
+  expectedConfigFingerprint: string | undefined,
+): void => {
+  switch (m.type) {
+    case 'init':
+      validateInitMutation(m, expectedConfigFingerprint);
+      break;
+    case 'put':
+      if (!('key' in m) || !('value' in m)) {
+        throw new BTreeConcurrencyError('Malformed put mutation: missing key or value.');
+      }
+      break;
+    case 'remove':
+      if (!('key' in m)) {
+        throw new BTreeConcurrencyError('Malformed remove mutation: missing key.');
+      }
+      break;
+    case 'removeById':
+      if (!('entryId' in m)) {
+        throw new BTreeConcurrencyError('Malformed removeById mutation: missing entryId.');
+      }
+      break;
+    case 'updateById':
+      if (!('entryId' in m) || !('value' in m)) {
+        throw new BTreeConcurrencyError('Malformed updateById mutation: missing entryId or value.');
+      }
+      break;
+    case 'popFirst':
+    case 'popLast':
+      break;
+    case 'putMany':
+      if (!('entries' in m) || !Array.isArray(m.entries)) {
+        throw new BTreeConcurrencyError('Malformed putMany mutation: missing entries array.');
+      }
+      validatePutManyEntries(m.entries as unknown[]);
+      break;
+    case 'deleteRange':
+      if (!('startKey' in m) || !('endKey' in m)) {
+        throw new BTreeConcurrencyError('Malformed deleteRange mutation: missing startKey or endKey.');
+      }
+      break;
+    case 'clear':
+      break;
+    default:
+      throw new BTreeConcurrencyError(
+        `Unsupported mutation type from shared store: ${String(m.type)}`,
+      );
+  }
+};
+
 export const validateMutationBatch = <TKey, TValue>(
   mutations: BTreeMutation<TKey, TValue>[],
   expectedConfigFingerprint?: string,
@@ -74,63 +147,10 @@ export const validateMutationBatch = <TKey, TValue>(
     if (typeof mutation !== 'object' || mutation === null) {
       throw new BTreeConcurrencyError('Malformed mutation: expected an object.');
     }
-    const m = mutation as Record<string, unknown>;
-    switch (m.type) {
-      case 'init':
-        if (typeof m.configFingerprint !== 'string') {
-          throw new BTreeConcurrencyError('Malformed init mutation: missing configFingerprint.');
-        }
-        if (expectedConfigFingerprint !== undefined && m.configFingerprint !== expectedConfigFingerprint) {
-          throw new BTreeConcurrencyError(
-            'Config mismatch: store peers must share identical tree config.',
-          );
-        }
-        break;
-      case 'put':
-        if (!('key' in m) || !('value' in m)) {
-          throw new BTreeConcurrencyError('Malformed put mutation: missing key or value.');
-        }
-        break;
-      case 'remove':
-        if (!('key' in m)) {
-          throw new BTreeConcurrencyError('Malformed remove mutation: missing key.');
-        }
-        break;
-      case 'removeById':
-        if (!('entryId' in m)) {
-          throw new BTreeConcurrencyError('Malformed removeById mutation: missing entryId.');
-        }
-        break;
-      case 'updateById':
-        if (!('entryId' in m) || !('value' in m)) {
-          throw new BTreeConcurrencyError('Malformed updateById mutation: missing entryId or value.');
-        }
-        break;
-      case 'popFirst':
-      case 'popLast':
-        break;
-      case 'putMany':
-        if (!('entries' in m) || !Array.isArray(m.entries)) {
-          throw new BTreeConcurrencyError('Malformed putMany mutation: missing entries array.');
-        }
-        for (const entry of m.entries as unknown[]) {
-          if (typeof entry !== 'object' || entry === null || !('key' in entry) || !('value' in entry)) {
-            throw new BTreeConcurrencyError('Malformed putMany mutation: each entry must have key and value.');
-          }
-        }
-        break;
-      case 'deleteRange':
-        if (!('startKey' in m) || !('endKey' in m)) {
-          throw new BTreeConcurrencyError('Malformed deleteRange mutation: missing startKey or endKey.');
-        }
-        break;
-      case 'clear':
-        break;
-      default:
-        throw new BTreeConcurrencyError(
-          `Unsupported mutation type from shared store: ${String(m.type)}`,
-        );
-    }
+    validateSingleMutation(
+      mutation as Record<string, unknown>,
+      expectedConfigFingerprint,
+    );
   }
 };
 
