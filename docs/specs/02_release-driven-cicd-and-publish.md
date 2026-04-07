@@ -77,11 +77,11 @@ Required auth/permissions:
 
 - `permissions.contents: write`
 - `permissions.pull-requests: write`
-- `permissions.id-token: write`
+- `permissions.id-token: write` (required for NPM Trusted Publisher OIDC flow)
 - Release Please token MUST be `${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}`
 - upload to GitHub Release uses `GH_TOKEN=${{ secrets.GITHUB_TOKEN }}`
 - setup-node uses `registry-url: https://registry.npmjs.org`
-- publish uses `NODE_AUTH_TOKEN=${{ secrets.NPM_TOKEN }}`
+- publish authenticates via NPM Trusted Publisher (OIDC); no `NODE_AUTH_TOKEN` or `NPM_TOKEN` secret is required
 - if only `GITHUB_TOKEN` is used for Release Please, repository settings MUST allow GitHub Actions to create pull requests
 
 ## 4. CI Workflow Contract (`.github/workflows/ci.yml`)

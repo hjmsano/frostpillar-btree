@@ -280,7 +280,7 @@ const last = tree.popLast();
 // { entryId: ..., key: 20, value: 'twenty' } または null（ツリーが空の場合）
 ```
 
-**`clear()`** -- 全エントリを削除し、ツリーを空の状態に O(1) でリセットします。内部シーケンスカウンタもリセットされるため、新しい `EntryId` はゼロから始まります。`clear()` 前に取得した `EntryId` は無効になります。
+**`clear()`** -- 全エントリを削除し、ツリーを空の状態に O(1) でリセットします。内部シーケンスカウンタはリセット**されない**ため、`EntryId` はインスタンスの存続期間中単調増加し、再利用されません。
 
 ```ts
 tree.clear();
@@ -429,7 +429,7 @@ tree.assertInvariants(); // 不正な場合はスロー
 
 #### クローンとシリアライズ
 
-**`clone()`** -- 構造的に独立したディープコピーを作成します。
+**`clone()`** -- 構造的に独立したコピーを作成します。ツリー構造（ノード、リンク、エントリID）は完全に独立しますが、格納されたキーと値の参照は元のツリーと共有されます。
 
 ```ts
 const copy = tree.clone();
@@ -501,7 +501,9 @@ const tree = new InMemoryBTree<number, string>({
 - **`getLogEntriesSince(version)`** -- 指定バージョン以降のすべてのミューテーションを返し、各インスタンスが最新状態へキャッチアップできるようにします。
 - **`append(expectedVersion, mutations)`** -- バージョンが一致する場合にミューテーションをアトミックに追加します（compare-and-swap）。`{ applied, version }` を返します。
 
-ストアの実装は自由です。インメモリ配列、データベーステーブル、Redis stream など何でも使えます。以下はインメモリの参考実装です。
+`getLogEntriesSince` で過去のミューテーションを返すストアは**マルチインスタンス・キャッチアップ**を実現します。各インスタンスが未受信のミューテーションをリプレイし、同一状態に収束します。ミューテーションをリプレイしないストア（空の `mutations` 配列と更新された `version` を返す）もサポートされています。この場合、各インスタンスは自身のローカル書き込みとバージョン進行のみを認識します。一貫性要件に応じてリプレイ戦略を選択してください。
+
+ストアの実装は自由です。インメモリ配列、データベーステーブル、Redis stream など何でも使えます。以下はリプレイ対応のインメモリ参考実装です。
 
 **Node.js / TypeScript：**
 
@@ -791,7 +793,7 @@ try {
 | `size`               | `() => number`                                                                        | エントリ数を返す。                                                                |
 | `getStats`           | `() => BTreeStats`                                                                    | 構造統計を返す。                                                                  |
 | `assertInvariants`   | `() => void`                                                                          | B+ tree の構造的な整合性を検証する。不正な場合はスローする。                      |
-| `clone`              | `() => InMemoryBTree<TKey, TValue>`                                                   | 構造的に独立したディープコピーを返す。                                            |
+| `clone`              | `() => InMemoryBTree<TKey, TValue>`                                                   | 構造的に独立したコピーを返す（キー・値参照は共有）。                              |
 | `toJSON`             | `() => BTreeJSON<TKey, TValue>`                                                       | バージョン付き JSON 互換ペイロードにシリアライズする。                            |
 | `fromJSON` (静的)    | `(json, compareKeys) => InMemoryBTree<TKey, TValue>`                                  | `toJSON` ペイロードからツリーを再構築する。                                       |
 

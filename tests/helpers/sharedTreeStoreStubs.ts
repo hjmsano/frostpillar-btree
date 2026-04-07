@@ -221,6 +221,38 @@ export class UnknownMutationStore<TKey, TValue> implements SharedTreeStore<TKey,
   }
 }
 
+export class CustomMutationStore<TKey, TValue> implements SharedTreeStore<TKey, TValue> {
+  private readonly mutations: BTreeMutation<TKey, TValue>[];
+
+  public constructor(mutations: BTreeMutation<TKey, TValue>[]) {
+    this.mutations = mutations;
+  }
+
+  public getLogEntriesSince(_version: bigint): Promise<SharedTreeLog<TKey, TValue>> {
+    return Promise.resolve({ version: 1n, mutations: this.mutations });
+  }
+
+  public append(_expectedVersion: bigint, _mutations: BTreeMutation<TKey, TValue>[]): Promise<{ applied: boolean; version: bigint }> {
+    return Promise.resolve({ applied: false, version: 1n });
+  }
+}
+
+export class PartialBadBatchStore<TKey, TValue> implements SharedTreeStore<TKey, TValue> {
+  public getLogEntriesSince(_version: bigint): Promise<SharedTreeLog<TKey, TValue>> {
+    return Promise.resolve({
+      version: 1n,
+      mutations: [
+        { type: 'put', key: 1 as unknown as TKey, value: 'one' as unknown as TValue },
+        { type: 'corrupt' } as unknown as BTreeMutation<TKey, TValue>,
+      ],
+    });
+  }
+
+  public append(_expectedVersion: bigint, _mutations: BTreeMutation<TKey, TValue>[]): Promise<{ applied: boolean; version: bigint }> {
+    return Promise.resolve({ applied: false, version: 1n });
+  }
+}
+
 export class NonReplayingAppendStore<TKey, TValue> implements SharedTreeStore<TKey, TValue> {
   private version = 0n;
 

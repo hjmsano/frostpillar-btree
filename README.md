@@ -280,7 +280,7 @@ const last = tree.popLast();
 // { entryId: ..., key: 20, value: 'twenty' } or null if empty
 ```
 
-**`clear()`** -- remove all entries and reset the tree to its empty state in O(1). The internal sequence counter is also reset, so new `EntryId` values start from zero. Any `EntryId` obtained before `clear()` becomes invalid.
+**`clear()`** -- remove all entries and reset the tree to its empty state in O(1). The internal sequence counter is **not** reset, so `EntryId` values continue to increase monotonically and are never reused within the lifetime of the instance.
 
 ```ts
 tree.clear();
@@ -429,7 +429,7 @@ tree.assertInvariants(); // throws if invalid
 
 #### Clone and Serialization
 
-**`clone()`** -- create a structurally independent deep copy:
+**`clone()`** -- create a structurally independent copy. The tree structure (nodes, links, entry IDs) is fully independent, but stored key and value references are shared with the source tree:
 
 ```ts
 const copy = tree.clone();
@@ -501,7 +501,9 @@ const tree = new InMemoryBTree<number, string>({
 - **`getLogEntriesSince(version)`** -- returns all mutations since a given version, so each instance can catch up.
 - **`append(expectedVersion, mutations)`** -- atomically appends mutations if the version matches (compare-and-swap). Returns `{ applied, version }`.
 
-The store can be backed by anything: an in-memory array, a database table, a Redis stream, etc. Below is a complete in-memory reference implementation.
+A store that returns historical mutations from `getLogEntriesSince` enables **multi-instance catch-up**: any instance can replay missed mutations to converge on the same state. Stores that do not replay mutations (returning an empty `mutations` array with an updated `version`) are also supported — in this mode, each instance only sees its own local writes and version advancement. Choose the replay strategy that matches your consistency requirements.
+
+The store can be backed by anything: an in-memory array, a database table, a Redis stream, etc. Below is a complete in-memory reference implementation with replay support.
 
 **Node.js / TypeScript:**
 
@@ -791,7 +793,7 @@ try {
 | `size`               | `() => number`                                                                        | Return the total number of entries.                                                     |
 | `getStats`           | `() => BTreeStats`                                                                    | Return structural statistics.                                                           |
 | `assertInvariants`   | `() => void`                                                                          | Assert B+ tree structural integrity. Throws if invalid.                                 |
-| `clone`              | `() => InMemoryBTree<TKey, TValue>`                                                   | Return a structurally independent deep copy.                                            |
+| `clone`              | `() => InMemoryBTree<TKey, TValue>`                                                   | Return a structurally independent copy (shared key/value refs).                         |
 | `toJSON`             | `() => BTreeJSON<TKey, TValue>`                                                       | Serialize to a versioned JSON-safe payload.                                             |
 | `fromJSON` (static)  | `(json, compareKeys) => InMemoryBTree<TKey, TValue>`                                  | Reconstruct a tree from a `toJSON` payload.                                             |
 

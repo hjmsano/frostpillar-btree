@@ -10,6 +10,7 @@ import {
   normalizeMaxSyncMutationsPerBatch,
   normalizeMaxRetries,
   normalizeReadMode,
+  validateMutationBatch,
 } from './helpers.js';
 import type { ReadMode } from './types.js';
 
@@ -70,6 +71,8 @@ export class ConcurrentInMemoryBTree<TKey, TValue> {
     if (log.version <= this.currentVersion) {
       return;
     }
+
+    validateMutationBatch(log.mutations);
 
     for (const mutation of log.mutations) {
       this.applyMutationLocal(mutation);
