@@ -395,9 +395,9 @@ Leaf single-element insert (`leafInsertAt`) and remove (`leafRemoveAt`) MUST shi
 
 `computeAutoScaleTier` MUST NOT allocate a new object on each call; it MUST return a reference to an existing tier descriptor.
 
-The internal leaf storage type MUST be structurally identical to the public `BTreeEntry<TKey, TValue>` type (`{ entryId: EntryId; key: TKey; value: TValue }`). Read operations (`peekFirst`, `peekLast`, `findFirst`, `findLast`, `getPairOrNextLower`, `entries`, `entriesReversed`, `range`) MUST return stored entry references directly without creating wrapper objects. This eliminates per-read allocation overhead.
+The internal leaf storage type (`LeafEntry`) MUST be structurally identical to the public `BTreeEntry<TKey, TValue>` type (`{ entryId: EntryId; key: TKey; value: TValue }`). Read operations (`peekFirst`, `peekLast`, `findFirst`, `findLast`, `getPairOrNextLower`, `entries`, `entriesReversed`, `range`) MUST return shallow copies via `toPublicEntry` to prevent callers from holding mutable references to internal entries. This ensures that subsequent `updateById` calls do not silently mutate previously returned entry objects.
 
-`deleteRange` rebalance loops MUST include an iteration bound derived from the tree height to prevent theoretical infinite loops.
+`deleteRange` rebalance loops MUST include a safety-guard iteration bound (`minLeafEntries + 4`) to prevent theoretical infinite loops. Normal convergence takes at most `minLeafEntries + 2` iterations; the extra margin accounts for unforeseen edge cases.
 
 `rangeQueryEntries` MUST use a bulk-copy fast-path for non-boundary leaves: when the last entry in a leaf is within the query range, all remaining entries in that leaf MUST be pushed without per-entry comparator calls. For boundary leaves, `rangeQueryEntries` MUST use binary search (`upperBoundInLeaf` / `lowerBoundInLeaf`) to locate the end position instead of linear scan.
 

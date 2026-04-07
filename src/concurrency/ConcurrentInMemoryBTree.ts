@@ -17,6 +17,7 @@ import type { ReadMode } from './types.js';
 
 export class ConcurrentInMemoryBTree<TKey, TValue> {
   private readonly store: ConcurrentInMemoryBTreeConfig<TKey, TValue>['store'];
+  private readonly compareKeys: KeyComparator<TKey>;
   private readonly maxRetries: number;
   private readonly maxSyncMutationsPerBatch: number;
   private readonly duplicateKeys: DuplicateKeyPolicy;
@@ -30,6 +31,7 @@ export class ConcurrentInMemoryBTree<TKey, TValue> {
 
   public constructor(config: ConcurrentInMemoryBTreeConfig<TKey, TValue>) {
     this.store = config.store;
+    this.compareKeys = config.compareKeys;
     this.maxRetries = normalizeMaxRetries(config.maxRetries);
     this.maxSyncMutationsPerBatch = normalizeMaxSyncMutationsPerBatch(
       config.maxSyncMutationsPerBatch,
@@ -374,7 +376,28 @@ export class ConcurrentInMemoryBTree<TKey, TValue> {
     }
     return this.runExclusive(async (): Promise<EntryId[]> => {
       return this.appendMutationAndApplyUnlocked(
-        (): { type: 'putMany'; entries: readonly { key: TKey; value: TValue }[] } => {
+        (tree): { type: 'putMany'; entries: readonly { key: TKey; value: TValue }[] } => {
+          const strictlyAscending = this.duplicateKeys !== 'allow';
+          for (let i = 1; i < entries.length; i += 1) {
+            const cmp = this.compareKeys(entries[i - 1].key, entries[i].key);
+            if (cmp > 0) {
+              throw new BTreeValidationError('putMany: entries not in ascending order.');
+            }
+            if (strictlyAscending && cmp === 0) {
+              throw new BTreeValidationError(
+                this.duplicateKeys === 'reject'
+                  ? 'putMany: duplicate key rejected.'
+                  : 'putMany: equal keys not allowed in strict mode.',
+              );
+            }
+          }
+          if (this.duplicateKeys === 'reject') {
+            for (const entry of entries) {
+              if (tree.hasKey(entry.key)) {
+                throw new BTreeValidationError('Duplicate key rejected.');
+              }
+            }
+          }
           return { type: 'putMany', entries };
         },
       );

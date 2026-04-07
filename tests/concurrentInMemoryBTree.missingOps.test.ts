@@ -391,6 +391,103 @@ void test('putMany with empty array returns empty array and does not advance sto
   assert.equal(await tree.size(), 1);
 });
 
+void test('putMany rejects unsorted entries without poisoning the shared log', async (): Promise<void> => {
+  const store = new AtomicMemorySharedTreeStore<number, string>();
+  const tree = makeTree(store);
+  const versionBefore = store.currentVersion;
+
+  await assert.rejects(
+    tree.putMany([
+      { key: 3, value: 'three' },
+      { key: 1, value: 'one' },
+    ]),
+    (error: Error) => error.message.includes('not in ascending order'),
+  );
+
+  assert.equal(store.currentVersion, versionBefore);
+  assert.equal(await tree.size(), 0);
+});
+
+void test('putMany rejects duplicate keys in input when duplicateKeys is reject', async (): Promise<void> => {
+  const store = new AtomicMemorySharedTreeStore<number, string>();
+  const tree = new ConcurrentInMemoryBTree<number, string>({
+    compareKeys: (left: number, right: number): number => left - right,
+    store,
+    duplicateKeys: 'reject',
+  });
+  const versionBefore = store.currentVersion;
+
+  await assert.rejects(
+    tree.putMany([
+      { key: 1, value: 'one' },
+      { key: 1, value: 'one-dup' },
+    ]),
+    (error: Error) => error.message.includes('duplicate key rejected'),
+  );
+
+  assert.equal(store.currentVersion, versionBefore);
+  assert.equal(await tree.size(), 0);
+});
+
+void test('putMany rejects entries conflicting with existing keys when duplicateKeys is reject', async (): Promise<void> => {
+  const store = new AtomicMemorySharedTreeStore<number, string>();
+  const tree = new ConcurrentInMemoryBTree<number, string>({
+    compareKeys: (left: number, right: number): number => left - right,
+    store,
+    duplicateKeys: 'reject',
+  });
+
+  await tree.put(2, 'existing');
+  const versionAfterPut = store.currentVersion;
+
+  await assert.rejects(
+    tree.putMany([
+      { key: 1, value: 'one' },
+      { key: 2, value: 'two-dup' },
+      { key: 3, value: 'three' },
+    ]),
+    (error: Error) => error.message.includes('Duplicate key rejected'),
+  );
+
+  // Store version must not advance — no mutation was appended
+  assert.equal(store.currentVersion, versionAfterPut);
+  assert.equal(await tree.size(), 1);
+  assert.equal(await tree.get(2), 'existing');
+});
+
+void test('putMany failure does not corrupt replay for other instances', async (): Promise<void> => {
+  const store = new AtomicMemorySharedTreeStore<number, string>();
+  const writer = new ConcurrentInMemoryBTree<number, string>({
+    compareKeys: (left: number, right: number): number => left - right,
+    store,
+    duplicateKeys: 'reject',
+  });
+  const reader = new ConcurrentInMemoryBTree<number, string>({
+    compareKeys: (left: number, right: number): number => left - right,
+    store,
+    duplicateKeys: 'reject',
+  });
+
+  await writer.put(5, 'five');
+
+  // Attempt an invalid putMany — should throw, not poison the log
+  await assert.rejects(
+    writer.putMany([
+      { key: 5, value: 'five-dup' },
+    ]),
+    (error: Error) => error.message.includes('Duplicate key rejected'),
+  );
+
+  // Reader must sync successfully — log must not contain the failed mutation
+  await reader.sync();
+  assert.equal(await reader.size(), 1);
+  assert.equal(await reader.get(5), 'five');
+
+  // Both instances remain functional after the failed putMany
+  await writer.put(10, 'ten');
+  assert.equal(await reader.get(10), 'ten');
+});
+
 // ---------------------------------------------------------------------------
 // deleteRange()
 // ---------------------------------------------------------------------------
