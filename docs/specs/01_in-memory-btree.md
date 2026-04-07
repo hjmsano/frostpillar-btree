@@ -1,8 +1,8 @@
 # Spec: B+ Tree Library Contract
 
 Status: Active
-Version: 2.24
-Last Updated: 2026-03-31
+Version: 2.25
+Last Updated: 2026-04-07
 
 ## 1. Scope
 
@@ -304,7 +304,7 @@ with async signatures equivalent to the in-memory API for the listed operation s
 - In `'local'` mode, callers MUST call `sync()` explicitly to incorporate remote mutations. Between explicit `sync()` calls, reads MAY return stale data.
 - A single instance MUST serialize overlapping async operations regardless of read mode.
 - Unknown mutation payloads from store MUST throw `BTreeConcurrencyError`.
-- During `sync`, the coordinator MUST validate all mutations in the fetched batch before applying any mutation. Validation MUST check both the mutation type and the presence of required fields for each known type (`put` requires `key` and `value`; `remove` requires `key`; `removeById` requires `entryId`; `updateById` requires `entryId` and `value`; `init` requires `configFingerprint`). If any mutation fails validation, the coordinator MUST throw `BTreeConcurrencyError` without modifying local tree state.
+- During `sync`, the coordinator MUST validate all mutations in the fetched batch before applying any mutation. Validation MUST check both the mutation type and the presence of required fields for each known type (`put` requires `key` and `value`; `remove` requires `key`; `removeById` requires `entryId`; `updateById` requires `entryId` and `value`; `init` requires `configFingerprint`). When an expected config fingerprint is provided, validation MUST also verify that each `init` mutation's `configFingerprint` matches the expected value; a mismatch MUST throw `BTreeConcurrencyError`. If any mutation fails validation, the coordinator MUST throw `BTreeConcurrencyError` without modifying local tree state.
 - Retry exhaustion MUST throw `BTreeConcurrencyError`.
 - `maxRetries` MUST be an integer `>= 1` and `<= 1024`. Invalid values MUST throw `BTreeConcurrencyError`.
 - `maxSyncMutationsPerBatch` defaults to `100_000` and MUST be an integer `>= 1` and `<= 1_000_000`. Invalid values MUST throw `BTreeConcurrencyError`.

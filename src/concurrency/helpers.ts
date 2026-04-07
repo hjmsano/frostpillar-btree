@@ -60,6 +60,7 @@ export const assertNeverMutation = (mutation: never): never => {
 
 export const validateMutationBatch = <TKey, TValue>(
   mutations: BTreeMutation<TKey, TValue>[],
+  expectedConfigFingerprint?: string,
 ): void => {
   for (const mutation of mutations) {
     if (typeof mutation !== 'object' || mutation === null) {
@@ -70,6 +71,11 @@ export const validateMutationBatch = <TKey, TValue>(
       case 'init':
         if (typeof m.configFingerprint !== 'string') {
           throw new BTreeConcurrencyError('Malformed init mutation: missing configFingerprint.');
+        }
+        if (expectedConfigFingerprint !== undefined && m.configFingerprint !== expectedConfigFingerprint) {
+          throw new BTreeConcurrencyError(
+            'Config mismatch: store peers must share identical tree config.',
+          );
         }
         break;
       case 'put':

@@ -72,7 +72,7 @@ export class ConcurrentInMemoryBTree<TKey, TValue> {
       return;
     }
 
-    validateMutationBatch(log.mutations);
+    validateMutationBatch(log.mutations, this.configFingerprint);
 
     for (const mutation of log.mutations) {
       this.applyMutationLocal(mutation);
@@ -107,11 +107,6 @@ export class ConcurrentInMemoryBTree<TKey, TValue> {
   ): AnyMutationResult<TKey, TValue> {
     switch (mutation.type) {
       case 'init':
-        if (mutation.configFingerprint !== this.configFingerprint) {
-          throw new BTreeConcurrencyError(
-            'Config mismatch: store peers must share identical tree config.',
-          );
-        }
         this.initSeen = true;
         return null;
       case 'put':
