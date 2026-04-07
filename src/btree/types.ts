@@ -12,8 +12,14 @@ export type KeyComparator<TKey> = (left: TKey, right: TKey) => number;
 
 export type DuplicateKeyPolicy = 'allow' | 'reject' | 'replace';
 
+/**
+ * Defines the inclusivity of the lower and upper bounds for a key range scan.
+ * Both bounds default to `'inclusive'` when omitted.
+ */
 export interface RangeBounds {
+  /** Lower bound type. Defaults to `'inclusive'` when omitted. */
   lowerBound?: 'inclusive' | 'exclusive';
+  /** Upper bound type. Defaults to `'inclusive'` when omitted. */
   upperBound?: 'inclusive' | 'exclusive';
 }
 
@@ -50,6 +56,18 @@ export interface LeafEntry<TKey, TValue> {
   key: TKey;
   value: TValue;
 }
+
+/**
+ * Shallow-copies a `LeafEntry` into a plain `BTreeEntry` for safe public API return.
+ * Prevents callers from holding a reference that mutates when `updateById` is called.
+ */
+export const toPublicEntry = <TKey, TValue>(
+  entry: LeafEntry<TKey, TValue>,
+): BTreeEntry<TKey, TValue> => ({
+  entryId: entry.entryId,
+  key: entry.key,
+  value: entry.value,
+});
 
 export interface LeafNode<TKey, TValue> {
   kind: typeof NODE_LEAF;

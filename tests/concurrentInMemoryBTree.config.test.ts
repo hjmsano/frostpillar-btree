@@ -257,51 +257,5 @@ void test('matching config: instances with same config cooperate normally', asyn
   assert.equal(await writerA.size(), 2);
 });
 
-// --- Concurrent API surface: intentionally omitted methods ---
-// These methods are not available on ConcurrentInMemoryBTree by design.
-// Bulk mutations (deleteRange, clear, putMany) and iterators are omitted
-// because they cannot be expressed as single atomic mutations in the shared log.
-// Serialization (toJSON/fromJSON/clone) is omitted because state is owned by
-// the shared store, not the local instance.
 
-void test('ConcurrentInMemoryBTree does not expose bulk mutation methods', (): void => {
-  const store = new AtomicMemorySharedTreeStore<number, string>();
-  const tree = new ConcurrentInMemoryBTree<number, string>({
-    compareKeys: (left: number, right: number): number => left - right,
-    store,
-  });
-
-  const instance = tree as unknown as Record<string, unknown>;
-  assert.equal(typeof instance.deleteRange, 'undefined', 'deleteRange should not exist');
-  assert.equal(typeof instance.clear, 'undefined', 'clear should not exist');
-  assert.equal(typeof instance.putMany, 'undefined', 'putMany should not exist');
-});
-
-void test('ConcurrentInMemoryBTree does not expose iterator methods', (): void => {
-  const store = new AtomicMemorySharedTreeStore<number, string>();
-  const tree = new ConcurrentInMemoryBTree<number, string>({
-    compareKeys: (left: number, right: number): number => left - right,
-    store,
-  });
-
-  const instance = tree as unknown as Record<string, unknown>;
-  assert.equal(typeof instance.entries, 'undefined', 'entries should not exist');
-  assert.equal(typeof instance.keys, 'undefined', 'keys should not exist');
-  assert.equal(typeof instance.values, 'undefined', 'values should not exist');
-  assert.equal(typeof instance.entriesReversed, 'undefined', 'entriesReversed should not exist');
-  assert.equal(typeof instance.forEach, 'undefined', 'forEach should not exist');
-  assert.equal(typeof (instance as { [Symbol.iterator]?: unknown })[Symbol.iterator], 'undefined', 'Symbol.iterator should not exist');
-});
-
-void test('ConcurrentInMemoryBTree does not expose serialization methods', (): void => {
-  const store = new AtomicMemorySharedTreeStore<number, string>();
-  const tree = new ConcurrentInMemoryBTree<number, string>({
-    compareKeys: (left: number, right: number): number => left - right,
-    store,
-  });
-
-  const instance = tree as unknown as Record<string, unknown>;
-  assert.equal(typeof instance.toJSON, 'undefined', 'toJSON should not exist');
-  assert.equal(typeof instance.clone, 'undefined', 'clone should not exist');
-});
 

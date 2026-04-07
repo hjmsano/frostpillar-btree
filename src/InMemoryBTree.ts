@@ -23,11 +23,13 @@ import {
   computeAutoScaleTier,
   computeNextAutoScaleThreshold,
   createInitialState,
+  minOccupancy,
 } from './btree/autoScale.js';
 import {
   createLeafNode,
   leafEntryAt,
   leafEntryCount,
+  toPublicEntry,
   type BTreeEntry,
   type BTreeState,
   type BTreeStats,
@@ -61,39 +63,49 @@ export class InMemoryBTree<TKey, TValue> {
   }
 
   public remove(key: TKey): BTreeEntry<TKey, TValue> | null {
-    return removeFirstMatchingEntry(this.state, key);
+    const entry = removeFirstMatchingEntry(this.state, key);
+    if (entry === null) return null;
+    return toPublicEntry(entry);
   }
 
   public removeById(entryId: EntryId): BTreeEntry<TKey, TValue> | null {
     if (this.state.entryKeys === null) {
       throw new BTreeValidationError('Requires enableEntryIdLookup: true.');
     }
-    return removeEntryById(this.state, entryId);
+    const entry = removeEntryById(this.state, entryId);
+    if (entry === null) return null;
+    return toPublicEntry(entry);
   }
 
   public peekById(entryId: EntryId): BTreeEntry<TKey, TValue> | null {
     if (this.state.entryKeys === null) {
       throw new BTreeValidationError('Requires enableEntryIdLookup: true.');
     }
-    return peekEntryById(this.state, entryId);
+    const entry = peekEntryById(this.state, entryId);
+    if (entry === null) return null;
+    return toPublicEntry(entry);
   }
 
   public updateById(entryId: EntryId, value: TValue): BTreeEntry<TKey, TValue> | null {
     if (this.state.entryKeys === null) {
       throw new BTreeValidationError('Requires enableEntryIdLookup: true.');
     }
-    return updateEntryById(this.state, entryId, value);
+    const entry = updateEntryById(this.state, entryId, value);
+    if (entry === null) return null;
+    return toPublicEntry(entry);
   }
 
   public popFirst(): BTreeEntry<TKey, TValue> | null {
-    return popFirstEntry(this.state);
+    const entry = popFirstEntry(this.state);
+    if (entry === null) return null;
+    return toPublicEntry(entry);
   }
 
   public peekFirst(): BTreeEntry<TKey, TValue> | null {
     if (this.state.entryCount === 0) {
       return null;
     }
-    return leafEntryAt(this.state.leftmostLeaf, 0);
+    return toPublicEntry(leafEntryAt(this.state.leftmostLeaf, 0));
   }
 
   public peekLast(): BTreeEntry<TKey, TValue> | null {
@@ -101,11 +113,13 @@ export class InMemoryBTree<TKey, TValue> {
       return null;
     }
     const leaf = this.state.rightmostLeaf;
-    return leafEntryAt(leaf, leafEntryCount(leaf) - 1);
+    return toPublicEntry(leafEntryAt(leaf, leafEntryCount(leaf) - 1));
   }
 
   public popLast(): BTreeEntry<TKey, TValue> | null {
-    return popLastEntry(this.state);
+    const entry = popLastEntry(this.state);
+    if (entry === null) return null;
+    return toPublicEntry(entry);
   }
 
   public clear(): void {
@@ -123,8 +137,8 @@ export class InMemoryBTree<TKey, TValue> {
       const tier = computeAutoScaleTier(0);
       this.state.maxLeafEntries = tier.maxLeaf;
       this.state.maxBranchChildren = tier.maxBranch;
-      this.state.minLeafEntries = Math.ceil(tier.maxLeaf / 2);
-      this.state.minBranchChildren = Math.ceil(tier.maxBranch / 2);
+      this.state.minLeafEntries = minOccupancy(tier.maxLeaf);
+      this.state.minBranchChildren = minOccupancy(tier.maxBranch);
       this.state._nextAutoScaleThreshold = computeNextAutoScaleThreshold(0);
     }
   }
@@ -142,39 +156,65 @@ export class InMemoryBTree<TKey, TValue> {
   public findFirst(key: TKey): BTreeEntry<TKey, TValue> | null {
     const found = findFirstMatchingUserKey(this.state, key);
     if (found === null) return null;
-    return leafEntryAt(found.leaf, found.index);
+    return toPublicEntry(leafEntryAt(found.leaf, found.index));
   }
 
+  /**
+   * Returns the last entry whose key matches `key`, or `null` if not found.
+   * Useful when `duplicateKeys` is `'allow'` and multiple entries share the same key.
+   */
   public findLast(key: TKey): BTreeEntry<TKey, TValue> | null {
     const found = findLastMatchingUserKey(this.state, key);
     if (found === null) return null;
-    return leafEntryAt(found.leaf, found.index);
+    return toPublicEntry(leafEntryAt(found.leaf, found.index));
   }
 
+  /**
+   * Returns the smallest key in the tree that is strictly greater than `key`,
+   * or `null` if no such key exists.
+   */
   public nextHigherKey(key: TKey): TKey | null {
     return findNextHigherKey(this.state, key);
   }
 
+  /**
+   * Returns the largest key in the tree that is strictly less than `key`,
+   * or `null` if no such key exists.
+   */
   public nextLowerKey(key: TKey): TKey | null {
     return findNextLowerKey(this.state, key);
   }
 
+  /**
+   * Returns the entry for `key` if it exists; otherwise returns the entry with
+   * the largest key strictly less than `key`. Returns `null` when the tree is
+   * empty or every key is greater than `key`.
+   */
   public getPairOrNextLower(key: TKey): BTreeEntry<TKey, TValue> | null {
     const found = findPairOrNextLower(this.state, key);
     if (found === null) return null;
-    return leafEntryAt(found.leaf, found.index);
+    return toPublicEntry(leafEntryAt(found.leaf, found.index));
   }
 
+  /**
+   * Returns the number of entries whose keys fall within [`startKey`, `endKey`].
+   * Pass `options` to make either bound exclusive.
+   */
   public count(startKey: TKey, endKey: TKey, options?: RangeBounds): number {
     return countRangeEntries(this.state, startKey, endKey, options);
   }
 
+  /**
+   * Deletes all entries whose keys fall within [`startKey`, `endKey`].
+   * Pass `options` to make either bound exclusive.
+   * @returns The number of entries deleted.
+   */
   public deleteRange(startKey: TKey, endKey: TKey, options?: RangeBounds): number {
     return deleteRangeEntries(this.state, startKey, endKey, options);
   }
 
   public range(startKey: TKey, endKey: TKey, options?: RangeBounds): BTreeEntry<TKey, TValue>[] {
-    return rangeQueryEntries(this.state, startKey, endKey, options);
+    return rangeQueryEntries(this.state, startKey, endKey, options).map(toPublicEntry);
   }
 
   public *entries(): IterableIterator<BTreeEntry<TKey, TValue>> {
@@ -182,7 +222,7 @@ export class InMemoryBTree<TKey, TValue> {
     while (leaf !== null) {
       const count = leafEntryCount(leaf);
       for (let i = 0; i < count; i += 1) {
-        yield leafEntryAt(leaf, i);
+        yield toPublicEntry(leafEntryAt(leaf, i));
       }
       leaf = leaf.next;
     }
@@ -193,7 +233,7 @@ export class InMemoryBTree<TKey, TValue> {
     while (leaf !== null) {
       const count = leafEntryCount(leaf);
       for (let i = count - 1; i >= 0; i -= 1) {
-        yield leafEntryAt(leaf, i);
+        yield toPublicEntry(leafEntryAt(leaf, i));
       }
       leaf = leaf.prev;
     }
@@ -220,7 +260,7 @@ export class InMemoryBTree<TKey, TValue> {
     while (leaf !== null) {
       const count = leafEntryCount(leaf);
       for (let i = 0; i < count; i += 1) {
-        callback.call(thisArg, leafEntryAt(leaf, i));
+        callback.call(thisArg, toPublicEntry(leafEntryAt(leaf, i)));
       }
       leaf = leaf.next;
     }
@@ -233,13 +273,18 @@ export class InMemoryBTree<TKey, TValue> {
     while (leaf !== null) {
       const count = leafEntryCount(leaf);
       for (let i = 0; i < count; i += 1) {
-        result[writeIdx++] = leafEntryAt(leaf, i);
+        result[writeIdx++] = toPublicEntry(leafEntryAt(leaf, i));
       }
       leaf = leaf.next;
     }
     return result;
   }
 
+  /**
+   * Returns a new `InMemoryBTree` with identical configuration and a deep copy
+   * of all entries. The clone shares no mutable state with the original.
+   * Note: `EntryId` values are reassigned in the clone — IDs from the source tree are not valid for the clone.
+   */
   public clone(): InMemoryBTree<TKey, TValue> {
     const cloned = new InMemoryBTree<TKey, TValue>(buildConfigFromState(this.state));
     applyAutoScaleCapacitySnapshot(

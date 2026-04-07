@@ -3,6 +3,7 @@ import {
   lowerBoundInLeaf,
   upperBoundInLeaf,
 } from './navigation.js';
+import { isEmptyRange } from './rangeQuery.js';
 import type { RangeBounds } from './types.js';
 import {
   rebalanceAfterLeafRemoval,
@@ -107,11 +108,9 @@ export const deleteRangeEntries = <TKey, TValue>(
   options?: RangeBounds,
 ): number => {
   if (state.entryCount === 0) return 0;
-  const boundCompared = state.compareKeys(startKey, endKey);
-  if (boundCompared > 0) return 0;
+  if (isEmptyRange(state.compareKeys, startKey, endKey, options)) return 0;
   const lowerExclusive = options?.lowerBound === 'exclusive';
   const upperExclusive = options?.upperBound === 'exclusive';
-  if (lowerExclusive && upperExclusive && boundCompared === 0) return 0;
 
   let deleted = 0;
   let needsNavigate = true;

@@ -437,6 +437,8 @@ copy.put(99, 'new');
 tree.hasKey(99); // false — original is unaffected
 ```
 
+Note: `EntryId` values are reassigned in the clone — IDs from the source tree are not valid for the clone.
+
 **`toJSON()` / `fromJSON()`** -- serialize and reconstruct:
 
 ```ts

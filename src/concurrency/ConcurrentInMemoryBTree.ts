@@ -1,4 +1,5 @@
-import { InMemoryBTree, type BTreeEntry, type BTreeStats, type DuplicateKeyPolicy, type EntryId, type RangeBounds } from '../InMemoryBTree.js';
+import { InMemoryBTree, type BTreeEntry, type BTreeJSON, type BTreeStats, type DuplicateKeyPolicy, type EntryId, type RangeBounds } from '../InMemoryBTree.js';
+import type { KeyComparator } from '../btree/types.js';
 import { BTreeConcurrencyError, BTreeValidationError } from '../errors.js';
 import type { BTreeMutation, ConcurrentInMemoryBTreeConfig } from './types.js';
 import {
@@ -93,6 +94,9 @@ export class ConcurrentInMemoryBTree<TKey, TValue> {
     mutation: Extract<BTreeMutation<TKey, TValue>, { type: 'put' }>,
   ): EntryId;
   private applyMutationLocal(
+    mutation: Extract<BTreeMutation<TKey, TValue>, { type: 'putMany' }>,
+  ): EntryId[];
+  private applyMutationLocal(
     mutation: Extract<BTreeMutation<TKey, TValue>, { type: 'remove' }>,
   ): BTreeEntry<TKey, TValue> | null;
   private applyMutationLocal(
@@ -108,6 +112,12 @@ export class ConcurrentInMemoryBTree<TKey, TValue> {
     mutation: Extract<BTreeMutation<TKey, TValue>, { type: 'popLast' }>,
   ): BTreeEntry<TKey, TValue> | null;
   private applyMutationLocal(
+    mutation: Extract<BTreeMutation<TKey, TValue>, { type: 'deleteRange' }>,
+  ): number;
+  private applyMutationLocal(
+    mutation: Extract<BTreeMutation<TKey, TValue>, { type: 'clear' }>,
+  ): null;
+  private applyMutationLocal(
     mutation: BTreeMutation<TKey, TValue>,
   ): AnyMutationResult<TKey, TValue>;
   private applyMutationLocal(
@@ -119,6 +129,8 @@ export class ConcurrentInMemoryBTree<TKey, TValue> {
         return null;
       case 'put':
         return this.tree.put(mutation.key, mutation.value);
+      case 'putMany':
+        return this.tree.putMany(mutation.entries);
       case 'remove':
         return this.tree.remove(mutation.key);
       case 'removeById':
@@ -129,6 +141,11 @@ export class ConcurrentInMemoryBTree<TKey, TValue> {
         return this.tree.popFirst();
       case 'popLast':
         return this.tree.popLast();
+      case 'deleteRange':
+        return this.tree.deleteRange(mutation.startKey, mutation.endKey, mutation.options);
+      case 'clear':
+        this.tree.clear();
+        return null;
       default:
         return assertNeverMutation(mutation);
     }
@@ -347,5 +364,93 @@ export class ConcurrentInMemoryBTree<TKey, TValue> {
 
   public async getPairOrNextLower(key: TKey): Promise<BTreeEntry<TKey, TValue> | null> {
     return this.readOp((tree) => tree.getPairOrNextLower(key));
+  }
+
+  public async putMany(
+    entries: readonly { key: TKey; value: TValue }[],
+  ): Promise<EntryId[]> {
+    if (entries.length === 0) {
+      return [];
+    }
+    return this.runExclusive(async (): Promise<EntryId[]> => {
+      return this.appendMutationAndApplyUnlocked(
+        (): { type: 'putMany'; entries: readonly { key: TKey; value: TValue }[] } => {
+          return { type: 'putMany', entries };
+        },
+      );
+    });
+  }
+
+  public async deleteRange(
+    startKey: TKey,
+    endKey: TKey,
+    options?: RangeBounds,
+  ): Promise<number> {
+    return this.runExclusive(async (): Promise<number> => {
+      const result = await this.appendMutationAndApplyUnlocked(
+        (tree): { type: 'deleteRange'; startKey: TKey; endKey: TKey; options?: RangeBounds } | null => {
+          const count = tree.count(startKey, endKey, options);
+          if (count === 0) {
+            return null;
+          }
+          return { type: 'deleteRange', startKey, endKey, options };
+        },
+      );
+      return result ?? 0;
+    });
+  }
+
+  public async clear(): Promise<void> {
+    await this.runExclusive(async (): Promise<null> => {
+      return this.appendMutationAndApplyUnlocked(
+        (): { type: 'clear' } => ({ type: 'clear' }),
+      );
+    });
+  }
+
+  public async entries(): Promise<BTreeEntry<TKey, TValue>[]> {
+    return this.readOp((tree) => Array.from(tree.entries()));
+  }
+
+  public async entriesReversed(): Promise<BTreeEntry<TKey, TValue>[]> {
+    return this.readOp((tree) => Array.from(tree.entriesReversed()));
+  }
+
+  public async keys(): Promise<TKey[]> {
+    return this.readOp((tree) => Array.from(tree.keys()));
+  }
+
+  public async values(): Promise<TValue[]> {
+    return this.readOp((tree) => Array.from(tree.values()));
+  }
+
+  public async forEach(
+    callback: (entry: BTreeEntry<TKey, TValue>) => void,
+  ): Promise<void> {
+    await this.readOp((tree) => {
+      tree.forEach(callback);
+    });
+  }
+
+  public async *[Symbol.asyncIterator](): AsyncIterableIterator<BTreeEntry<TKey, TValue>> {
+    const all = await this.entries();
+    for (const entry of all) {
+      yield entry;
+    }
+  }
+
+  public async clone(): Promise<InMemoryBTree<TKey, TValue>> {
+    return this.readOp((tree) => tree.clone());
+  }
+
+  public async toJSON(): Promise<BTreeJSON<TKey, TValue>> {
+    return this.readOp((tree) => tree.toJSON());
+  }
+
+  public static fromJSON<TKey, TValue>(
+    json: BTreeJSON<TKey, TValue>,
+    compareKeys: KeyComparator<TKey>,
+  ): InMemoryBTree<TKey, TValue> {
+    return InMemoryBTree.fromJSON(json, compareKeys);
   }
 }

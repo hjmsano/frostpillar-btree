@@ -28,7 +28,7 @@ const selectBranchChild = <TKey, TValue>(
     const mid = (lower + upper) >>> 1;
     const k = branch.keys[mid];
     const cmp = compare(k.key, userKey);
-    if ((cmp !== 0 ? cmp : k.sequence - sequence) <= 0) {
+    if ((cmp !== 0 ? cmp : k.sequence < sequence ? -1 : k.sequence > sequence ? 1 : 0) <= 0) {
       selectedIndex = mid;
       lower = mid + 1;
     } else {
@@ -67,7 +67,7 @@ export const lowerBoundInLeaf = <TKey, TValue>(
     const mid = (lower + upper) >>> 1;
     const e = leaf.entries[mid];
     const cmp = compare(e.key, userKey);
-    if ((cmp !== 0 ? cmp : e.entryId - sequence) < 0) {
+    if ((cmp !== 0 ? cmp : e.entryId < sequence ? -1 : e.entryId > sequence ? 1 : 0) < 0) {
       lower = mid + 1;
     } else {
       upper = mid;
@@ -91,7 +91,7 @@ export const upperBoundInLeaf = <TKey, TValue>(
     const mid = (lower + upper) >>> 1;
     const e = leaf.entries[mid];
     const cmp = compare(e.key, userKey);
-    if ((cmp !== 0 ? cmp : e.entryId - sequence) <= 0) {
+    if ((cmp !== 0 ? cmp : e.entryId < sequence ? -1 : e.entryId > sequence ? 1 : 0) <= 0) {
       lower = mid + 1;
     } else {
       upper = mid;

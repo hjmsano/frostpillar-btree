@@ -34,21 +34,29 @@ export type MutationResult<
   ? null
   : TMutation extends { type: 'put' }
     ? EntryId
-    : TMutation extends { type: 'remove' }
-      ? BTreeEntry<TKey, TValue> | null
-      : TMutation extends { type: 'removeById' }
+    : TMutation extends { type: 'putMany' }
+      ? EntryId[]
+      : TMutation extends { type: 'remove' }
         ? BTreeEntry<TKey, TValue> | null
-        : TMutation extends { type: 'updateById' }
+        : TMutation extends { type: 'removeById' }
           ? BTreeEntry<TKey, TValue> | null
-          : TMutation extends { type: 'popFirst' }
+          : TMutation extends { type: 'updateById' }
             ? BTreeEntry<TKey, TValue> | null
-            : TMutation extends { type: 'popLast' }
+            : TMutation extends { type: 'popFirst' }
               ? BTreeEntry<TKey, TValue> | null
-              : never;
+              : TMutation extends { type: 'popLast' }
+                ? BTreeEntry<TKey, TValue> | null
+                : TMutation extends { type: 'deleteRange' }
+                  ? number
+                  : TMutation extends { type: 'clear' }
+                    ? null
+                    : never;
 
 export type AnyMutationResult<TKey, TValue> =
   | EntryId
+  | EntryId[]
   | BTreeEntry<TKey, TValue>
+  | number
   | null;
 
 export const assertNeverMutation = (mutation: never): never => {
@@ -100,6 +108,18 @@ export const validateMutationBatch = <TKey, TValue>(
         break;
       case 'popFirst':
       case 'popLast':
+        break;
+      case 'putMany':
+        if (!('entries' in m) || !Array.isArray(m.entries)) {
+          throw new BTreeConcurrencyError('Malformed putMany mutation: missing entries array.');
+        }
+        break;
+      case 'deleteRange':
+        if (!('startKey' in m) || !('endKey' in m)) {
+          throw new BTreeConcurrencyError('Malformed deleteRange mutation: missing startKey or endKey.');
+        }
+        break;
+      case 'clear':
         break;
       default:
         throw new BTreeConcurrencyError(

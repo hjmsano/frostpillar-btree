@@ -1,8 +1,8 @@
 # Spec: B+ Tree Library Contract
 
 Status: Active
-Version: 2.25
-Last Updated: 2026-04-07
+Version: 2.26
+Last Updated: 2026-04-08
 
 ## 1. Scope
 
@@ -287,8 +287,33 @@ Whole-tree invariants:
 `ConcurrentInMemoryBTree<TKey, TValue>` MUST provide:
 
 - `put`, `remove`, `removeById`, `peekById`, `updateById`, `popFirst`, `popLast`, `peekFirst`, `peekLast`, `findFirst`, `findLast`, `get`, `hasKey`, `range`, `count`, `nextHigherKey`, `nextLowerKey`, `getPairOrNextLower`, `snapshot`, `size`, `getStats`, `assertInvariants`, `sync`
+- `putMany(entries)` — coordinated bulk insert; appends a single `putMany` mutation and applies locally
+- `deleteRange(startKey, endKey, options?)` — coordinated range delete; appends a single `deleteRange` mutation and applies locally; returns the count of deleted entries
+- `clear()` — coordinated full clear; appends a single `clear` mutation and applies locally
+- `entries()` — returns `Promise<BTreeEntry<TKey, TValue>[]>` (materialized in ascending order within the read lock)
+- `entriesReversed()` — returns `Promise<BTreeEntry<TKey, TValue>[]>` (materialized in descending order within the read lock)
+- `keys()` — returns `Promise<TKey[]>` (materialized in ascending order within the read lock)
+- `values()` — returns `Promise<TValue[]>` (materialized in ascending order within the read lock)
+- `forEach(cb)` — returns `Promise<void>`; invokes `cb` for each entry in ascending order within the read lock
+- `[Symbol.asyncIterator]()` — async iteration over all entries in ascending order via `entries()`
+- `clone()` — returns `Promise<InMemoryBTree<TKey, TValue>>`; a non-concurrent, independent copy of the current tree state (synced first in `'strong'` mode)
+- `toJSON()` — returns `Promise<BTreeJSON<TKey, TValue>>`
+- `static fromJSON(json, compareKeys)` — static factory; returns a local `InMemoryBTree` without store involvement; delegates to `InMemoryBTree.fromJSON`
 
 with async signatures equivalent to the in-memory API for the listed operation subset.
+
+Iteration methods (`entries`, `entriesReversed`, `keys`, `values`, `forEach`) MUST materialize results within the exclusive read lock and return arrays (or invoke callbacks) rather than returning lazy iterators. This ensures the read is atomic with respect to concurrent writes.
+
+`putMany` MUST accept a `ReadonlyArray<{ key: TKey; value: TValue }>` pre-sorted in ascending comparator order and MUST return `Promise<EntryId[]>`.
+
+`deleteRange` MUST return `Promise<number>` (count of deleted entries) and MUST follow the same bound semantics as `range`/`count`.
+
+`clear` MUST return `Promise<void>`.
+
+The `putMany`, `deleteRange`, and `clear` mutation types MUST be validated during `sync` with the same field-presence checks as other mutation types:
+- `putMany` requires `entries` (array of `{ key, value }` objects)
+- `deleteRange` requires `startKey`, `endKey`, and optional `options`
+- `clear` requires no additional fields
 
 ### 6.3 Coordination Guarantees
 
@@ -304,7 +329,7 @@ with async signatures equivalent to the in-memory API for the listed operation s
 - In `'local'` mode, callers MUST call `sync()` explicitly to incorporate remote mutations. Between explicit `sync()` calls, reads MAY return stale data.
 - A single instance MUST serialize overlapping async operations regardless of read mode.
 - Unknown mutation payloads from store MUST throw `BTreeConcurrencyError`.
-- During `sync`, the coordinator MUST validate all mutations in the fetched batch before applying any mutation. Validation MUST check both the mutation type and the presence of required fields for each known type (`put` requires `key` and `value`; `remove` requires `key`; `removeById` requires `entryId`; `updateById` requires `entryId` and `value`; `init` requires `configFingerprint`). When an expected config fingerprint is provided, validation MUST also verify that each `init` mutation's `configFingerprint` matches the expected value; a mismatch MUST throw `BTreeConcurrencyError`. If any mutation fails validation, the coordinator MUST throw `BTreeConcurrencyError` without modifying local tree state.
+- During `sync`, the coordinator MUST validate all mutations in the fetched batch before applying any mutation. Validation MUST check both the mutation type and the presence of required fields for each known type (`put` requires `key` and `value`; `remove` requires `key`; `removeById` requires `entryId`; `updateById` requires `entryId` and `value`; `init` requires `configFingerprint`; `putMany` requires `entries`; `deleteRange` requires `startKey` and `endKey`; `clear` requires no additional fields). When an expected config fingerprint is provided, validation MUST also verify that each `init` mutation's `configFingerprint` matches the expected value; a mismatch MUST throw `BTreeConcurrencyError`. If any mutation fails validation, the coordinator MUST throw `BTreeConcurrencyError` without modifying local tree state.
 - Retry exhaustion MUST throw `BTreeConcurrencyError`.
 - `maxRetries` MUST be an integer `>= 1` and `<= 1024`. Invalid values MUST throw `BTreeConcurrencyError`.
 - `maxSyncMutationsPerBatch` defaults to `100_000` and MUST be an integer `>= 1` and `<= 1_000_000`. Invalid values MUST throw `BTreeConcurrencyError`.
