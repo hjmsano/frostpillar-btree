@@ -281,8 +281,10 @@ export class InMemoryBTree<TKey, TValue> {
   }
 
   /**
-   * Returns a new `InMemoryBTree` with identical configuration and a deep copy
-   * of all entries. The clone shares no mutable state with the original.
+   * Returns a structurally independent `InMemoryBTree` with identical
+   * configuration and entries. The tree structure (nodes, links, entry IDs)
+   * is fully independent, but stored key and value references are shared
+   * with the source tree.
    * Note: `EntryId` values are reassigned in the clone — IDs from the source tree are not valid for the clone.
    */
   public clone(): InMemoryBTree<TKey, TValue> {

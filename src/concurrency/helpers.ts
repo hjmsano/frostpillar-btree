@@ -113,6 +113,11 @@ export const validateMutationBatch = <TKey, TValue>(
         if (!('entries' in m) || !Array.isArray(m.entries)) {
           throw new BTreeConcurrencyError('Malformed putMany mutation: missing entries array.');
         }
+        for (const entry of m.entries as unknown[]) {
+          if (typeof entry !== 'object' || entry === null || !('key' in entry) || !('value' in entry)) {
+            throw new BTreeConcurrencyError('Malformed putMany mutation: each entry must have key and value.');
+          }
+        }
         break;
       case 'deleteRange':
         if (!('startKey' in m) || !('endKey' in m)) {

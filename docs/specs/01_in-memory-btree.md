@@ -324,7 +324,7 @@ The `putMany`, `deleteRange`, and `clear` mutation types MUST be validated durin
 - Mutation append responses with invalid shape/types (`applied` not boolean or `version` not bigint) MUST throw `BTreeConcurrencyError`.
 - Mutation append responses that violate shared-store version semantics MUST throw `BTreeConcurrencyError`.
 - `readMode` defaults to `'strong'`. Valid values are `'strong'` and `'local'`. Invalid values MUST throw `BTreeConcurrencyError`.
-- When `readMode` is `'strong'` (default): reads MUST `sync` before returning (`peekById`, `peekFirst`, `peekLast`, `findFirst`, `findLast`, `get`, `hasKey`, `range`, `count`, `nextHigherKey`, `nextLowerKey`, `getPairOrNextLower`, `snapshot`, `size`, `getStats`, `assertInvariants`).
+- When `readMode` is `'strong'` (default): reads MUST `sync` before returning (`peekById`, `peekFirst`, `peekLast`, `findFirst`, `findLast`, `get`, `hasKey`, `range`, `count`, `nextHigherKey`, `nextLowerKey`, `getPairOrNextLower`, `snapshot`, `size`, `getStats`, `assertInvariants`, `entries`, `entriesReversed`, `keys`, `values`, `forEach`, `clone`, `toJSON`).
 - When `readMode` is `'local'`: reads MUST execute against the local in-memory tree without calling `store.getLogEntriesSince()`. Reads still serialize through the operation queue to prevent read/write interleaving on the local tree.
 - In `'local'` mode, callers MUST call `sync()` explicitly to incorporate remote mutations. Between explicit `sync()` calls, reads MAY return stale data.
 - A single instance MUST serialize overlapping async operations regardless of read mode.
