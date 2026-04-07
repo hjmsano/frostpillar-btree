@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.5](https://github.com/hjmsano/frostpillar-btree/compare/v0.2.4...v0.2.5) (2026-04-07)
+
+
+### Bug Fixes
+
+* sync atomicity, mutation validation, doc corrections, and dead code cleanup ([41f01ce](https://github.com/hjmsano/frostpillar-btree/commit/41f01cebbf19530c6b758599b392b0ee63e2a96f))
+
 ## [0.2.4](https://github.com/hjmsano/frostpillar-btree/compare/v0.2.3...v0.2.4) (2026-04-05)
 
 
