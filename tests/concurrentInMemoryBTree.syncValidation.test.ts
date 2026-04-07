@@ -9,6 +9,7 @@ import {
 
 import {
   CustomMutationStore,
+  IncompatibleReplayStore,
   PartialBadBatchStore,
   UnknownMutationStore,
 } from './helpers/sharedTreeStoreStubs.js';
@@ -134,4 +135,40 @@ void test('rejects init mutation with mismatched configFingerprint before applyi
 
   // eslint-disable-next-line @typescript-eslint/dot-notation -- testing internal state after error
   assert.equal(tree['tree'].size(), 0, 'no mutations should be applied when fingerprint mismatches');
+});
+
+void test('sync throws BTreeConcurrencyError when replay throws mid-batch (runtime failure after validation)', async (): Promise<void> => {
+  const tree = new ConcurrentInMemoryBTree<number, string>({
+    compareKeys: (left: number, right: number): number => left - right,
+    store: new IncompatibleReplayStore<number, string>(),
+    enableEntryIdLookup: false,
+  });
+
+  await assert.rejects(async (): Promise<void> => {
+    await tree.sync();
+  }, BTreeConcurrencyError);
+
+  // currentVersion must remain at 0 — the failed sync must not advance the version
+  // eslint-disable-next-line @typescript-eslint/dot-notation -- testing internal state after error
+  assert.equal(tree['currentVersion'], 0n, 'currentVersion must not advance on replay failure');
+});
+
+void test('instance is permanently poisoned after a replay runtime failure', async (): Promise<void> => {
+  const tree = new ConcurrentInMemoryBTree<number, string>({
+    compareKeys: (left: number, right: number): number => left - right,
+    store: new IncompatibleReplayStore<number, string>(),
+    enableEntryIdLookup: false,
+  });
+
+  await assert.rejects(async (): Promise<void> => {
+    await tree.sync();
+  }, BTreeConcurrencyError);
+
+  await assert.rejects(async (): Promise<void> => {
+    await tree.sync();
+  }, BTreeConcurrencyError);
+
+  await assert.rejects(async (): Promise<void> => {
+    await tree.size();
+  }, BTreeConcurrencyError);
 });

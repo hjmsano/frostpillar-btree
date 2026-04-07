@@ -25,6 +25,7 @@ export class ConcurrentInMemoryBTree<TKey, TValue> {
   private currentVersion: bigint;
   private operationQueue: Promise<void>;
   private initSeen: boolean;
+  private corrupted: boolean;
 
   public constructor(config: ConcurrentInMemoryBTreeConfig<TKey, TValue>) {
     this.store = config.store;
@@ -47,6 +48,7 @@ export class ConcurrentInMemoryBTree<TKey, TValue> {
     this.currentVersion = 0n;
     this.operationQueue = Promise.resolve();
     this.initSeen = false;
+    this.corrupted = false;
   }
 
   public async sync(): Promise<void> {
@@ -74,11 +76,17 @@ export class ConcurrentInMemoryBTree<TKey, TValue> {
 
     validateMutationBatch(log.mutations, this.configFingerprint);
 
-    for (const mutation of log.mutations) {
-      this.applyMutationLocal(mutation);
+    try {
+      for (const mutation of log.mutations) {
+        this.applyMutationLocal(mutation);
+      }
+      this.currentVersion = log.version;
+    } catch {
+      this.corrupted = true;
+      throw new BTreeConcurrencyError(
+        'Replay failure: instance is permanently corrupted. Discard and create a new instance.',
+      );
     }
-
-    this.currentVersion = log.version;
   }
 
   private applyMutationLocal(
@@ -127,7 +135,14 @@ export class ConcurrentInMemoryBTree<TKey, TValue> {
   }
 
   private runExclusive<TResult>(operation: () => Promise<TResult>): Promise<TResult> {
-    const run = async (): Promise<TResult> => operation();
+    const run = async (): Promise<TResult> => {
+      if (this.corrupted) {
+        throw new BTreeConcurrencyError(
+          'Instance is permanently corrupted. Discard and create a new instance.',
+        );
+      }
+      return operation();
+    };
     const result = this.operationQueue.then(run, run);
     this.operationQueue = result.then(
       (): void => undefined,

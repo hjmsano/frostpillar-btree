@@ -756,6 +756,23 @@ try {
 
 ---
 
+#### Shared Store Security Assumptions
+
+`ConcurrentInMemoryBTree` assumes the shared store is **trusted**. It does not defend against a store that returns maliciously crafted or arbitrarily large mutation payloads.
+
+**Trust boundary:**
+- The store is under your control or the control of your application.
+- All instances sharing a store must use identical configuration (enforced via config fingerprint on the first write, but only when an `init` mutation is present in the replayed batch).
+- Mutations are structurally validated before replay, but semantic correctness (e.g., key type consistency) is the caller's responsibility.
+
+**Hardening recommendations for shared or multi-tenant deployments:**
+- Do not expose `append` or `getLogEntriesSince` to untrusted clients without an authorization layer.
+- Apply size limits to stored mutation payloads at the store level before they reach `ConcurrentInMemoryBTree`.
+- Use `maxSyncMutationsPerBatch` to cap the number of mutations applied per sync call (default: 100,000).
+- If a `sync()` throws `BTreeConcurrencyError` due to a replay failure, the instance is permanently poisoned. Discard it and create a new one.
+
+---
+
 ## API Reference
 
 ### InMemoryBTree

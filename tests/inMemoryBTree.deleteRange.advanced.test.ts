@@ -19,6 +19,25 @@ const numTree = (opts?: {
   });
 
 // ===========================================================================
+// deleteRange() - regression: underfill leaf must be fully rebalanced
+// ===========================================================================
+
+void test('deleteRange: deleting first half of 10-key tree (maxLeafEntries:5) leaves valid structure', (): void => {
+  const tree = new InMemoryBTree<number, string>({
+    compareKeys: (a: number, b: number): number => a - b,
+    maxLeafEntries: 5,
+    maxBranchChildren: 5,
+  });
+  for (let i = 0; i < 10; i += 1) {
+    tree.put(i, `v${i}`);
+  }
+  const deleted = tree.deleteRange(0, 4);
+  assert.equal(deleted, 5);
+  assert.equal(tree.size(), 5);
+  tree.assertInvariants();
+});
+
+// ===========================================================================
 // deleteRange() - leaf link consistency after full subtree removal
 // ===========================================================================
 

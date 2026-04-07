@@ -9,7 +9,6 @@ import {
   updateMinKeyInAncestors,
 } from './rebalance.js';
 import {
-  isLeafNode,
   leafEntryAt,
   leafEntryCount,
   type BTreeState,
@@ -56,21 +55,11 @@ const findRemoveEnd = <TKey, TValue>(
   return removeEnd;
 };
 
-const computeTreeHeight = <TKey, TValue>(
-  state: BTreeState<TKey, TValue>,
-): number => {
-  let h = 0;
-  let n = state.root;
-  while (!isLeafNode(n)) { n = n.children[n.childOffset]; h += 1; }
-  return h;
-};
-
 const spliceLeafAndRebalance = <TKey, TValue>(
   state: BTreeState<TKey, TValue>,
   leaf: LeafNode<TKey, TValue>,
   idx: number,
   removeCount: number,
-  maxRebalanceDepth: number,
 ): number => {
   if (state.entryKeys !== null) {
     for (let i = idx; i < idx + removeCount; i += 1) {
@@ -86,11 +75,15 @@ const spliceLeafAndRebalance = <TKey, TValue>(
     updateMinKeyInAncestors(leaf);
   }
   const countAfterSplice = leafEntryCount(leaf);
-  let maxIter = maxRebalanceDepth;
-  while (maxIter > 0 && leaf !== state.root && leafEntryCount(leaf) < state.minLeafEntries) {
+  // Loop until the leaf satisfies minimum occupancy or is merged/detached.
+  // Each iteration either borrows one entry (O(1)) or merges (O(entries), then breaks).
+  // Safety guard prevents infinite loops from unforeseen bugs; normal convergence
+  // takes at most minLeafEntries + 2 iterations.
+  let safetyGuard = state.minLeafEntries + 4;
+  while (safetyGuard > 0 && leaf !== state.root && leafEntryCount(leaf) < state.minLeafEntries) {
     rebalanceAfterLeafRemoval(state, leaf);
     if (leaf.parent !== null && leaf.parent.children[leaf.indexInParent] !== leaf) break;
-    maxIter -= 1;
+    safetyGuard -= 1;
   }
   if (leafEmptied && leafEntryCount(leaf) > 0 && leaf.parent !== null
       && leaf.parent.children[leaf.indexInParent] === leaf) {
@@ -120,7 +113,6 @@ export const deleteRangeEntries = <TKey, TValue>(
   const upperExclusive = options?.upperBound === 'exclusive';
   if (lowerExclusive && upperExclusive && boundCompared === 0) return 0;
 
-  const treeHeight = computeTreeHeight(state);
   let deleted = 0;
   let needsNavigate = true;
   let leaf: LeafNode<TKey, TValue> = null!;
@@ -141,7 +133,7 @@ export const deleteRangeEntries = <TKey, TValue>(
     const removeCount = removeEnd - idx;
     if (removeCount === 0) break;
 
-    const countAfterSplice = spliceLeafAndRebalance(state, leaf, idx, removeCount, treeHeight);
+    const countAfterSplice = spliceLeafAndRebalance(state, leaf, idx, removeCount);
     deleted += removeCount;
 
     if (removeEnd < count) break;

@@ -71,9 +71,12 @@ void test('does not advance local version when append succeeds but local apply f
   assert.equal(healthySnapshot[1].key, 2);
   assert.equal(healthySnapshot[1].value, 'two');
 
+  // After the failed put, the next sync (triggered by snapshot) attempts to replay
+  // put(2, 'two') from the store again. The comparator throws at replay time, which
+  // is caught by syncUnlocked and wrapped as BTreeConcurrencyError (poisoning the instance).
   await assert.rejects(async (): Promise<void> => {
     await brokenComparatorTree.snapshot();
-  }, new RegExp(applyFailMessage));
+  }, BTreeConcurrencyError);
 });
 
 void test('throws when append returns non-bigint version', async (): Promise<void> => {

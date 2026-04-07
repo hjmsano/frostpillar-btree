@@ -314,6 +314,8 @@ with async signatures equivalent to the in-memory API for the listed operation s
 - When an `init` mutation is replayed during sync, the instance MUST compare the fingerprint to its own. A mismatch MUST throw `BTreeConcurrencyError`.
 - `init` mutations MUST NOT modify tree state (no-op for the local tree).
 - Comparator consistency (`compareKeys`) remains the caller's responsibility; it cannot be serialized into the fingerprint.
+- If a mutation throws at runtime during replay (after batch validation succeeds), the coordinator MUST throw `BTreeConcurrencyError` and permanently mark the instance as corrupted. All subsequent operations on a corrupted instance MUST throw `BTreeConcurrencyError`. Callers MUST discard the instance and create a new one to recover.
+- Any inner exception raised by tree operations during replay MUST be wrapped and surfaced as `BTreeConcurrencyError`. `BTreeValidationError` or `BTreeInvariantError` MUST NOT propagate out of `sync`.
 
 `put` returns a log-derived `EntryId`; after synchronization, that ID MAY be used across instances backed by the same shared store.
 
