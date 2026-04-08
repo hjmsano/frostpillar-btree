@@ -107,17 +107,13 @@ export class ConcurrentInMemoryBTree<TKey, TValue> {
     endKey: TKey,
     options?: RangeBounds,
   ): Promise<number> {
-    return this.coord.runExclusive(async () => {
-      const result = await this.coord.appendAndApply(
-        createDeleteRangeEvaluator(startKey, endKey, options),
-      );
-      return result ?? 0;
-    });
+    const result = await this.coord.writeOp(
+      createDeleteRangeEvaluator(startKey, endKey, options),
+    );
+    return result ?? 0;
   }
   public async clear(): Promise<void> {
-    await this.coord.runExclusive(async () => {
-      await this.coord.appendAndApply(createClearEvaluator());
-    });
+    await this.coord.writeOp(createClearEvaluator());
   }
 
   public async get(key: TKey): Promise<TValue | null> {

@@ -53,9 +53,7 @@ const mergeLeafEntries = <TKey, TValue>(
     target.entries.length = target.entries.length - target.entryOffset;
     target.entryOffset = 0;
   }
-  const src = source.entries;
-  for (let i = source.entryOffset; i < src.length; i += 1)
-    target.entries.push(src[i]);
+  target.entries.push(...source.entries.slice(source.entryOffset));
 };
 
 /** Applies the lazy divisor to a minimum-occupancy value. */
