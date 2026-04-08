@@ -1,6 +1,6 @@
 {
   "name": "@frostpillar/frostpillar-btree",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "A tiny, zero-dependency in-memory B+ tree for TypeScript, Node.js, and browser JavaScript.",
   "type": "module",
   "author": "Hajime Sano",
