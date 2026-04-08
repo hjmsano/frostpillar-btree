@@ -2,6 +2,7 @@ import { BTreeInvariantError, BTreeValidationError } from '../errors.js';
 import { maybeAutoScale } from './autoScale.js';
 import {
   createBranchNode,
+  createEntry,
   createLeafNode,
   type BTreeNode,
   type BTreeState,
@@ -53,11 +54,11 @@ const buildLeaves = <TKey, TValue>(
     const chunk = new Array<LeafEntry<TKey, TValue>>(chunkEnd - chunkStart);
     for (let i = chunkStart; i < chunkEnd; i += 1) {
       const seq = (baseSequence + i) as EntryId;
-      chunk[i - chunkStart] = {
-        key: entries[i].key,
-        entryId: seq,
-        value: entries[i].value,
-      };
+      chunk[i - chunkStart] = createEntry(
+        entries[i].key,
+        seq,
+        entries[i].value,
+      );
       ids[i] = seq;
       if (state.entryKeys !== null) {
         state.entryKeys.set(seq, entries[i].key);

@@ -70,16 +70,18 @@ export interface LeafEntry<TKey, TValue> {
 }
 
 /**
- * Shallow-copies a `LeafEntry` into a plain `BTreeEntry` for safe public API return.
- * Used by single-entry read APIs to prevent callers from holding live internal references.
+ * Shallow-copies a `LeafEntry` into a frozen `BTreeEntry` for safe public API return.
+ * Used by single-entry read APIs to prevent callers from holding live internal references
+ * and from mutating returned entry properties.
  */
 export const toPublicEntry = <TKey, TValue>(
   entry: LeafEntry<TKey, TValue>,
-): BTreeEntry<TKey, TValue> => ({
-  entryId: entry.entryId,
-  key: entry.key,
-  value: entry.value,
-});
+): BTreeEntry<TKey, TValue> =>
+  Object.freeze({
+    entryId: entry.entryId,
+    key: entry.key,
+    value: entry.value,
+  });
 
 /**
  * Freezes and returns an internal entry for safe exposure via bulk read APIs.
@@ -90,6 +92,18 @@ export const freezeEntry = <TKey, TValue>(
   entry: LeafEntry<TKey, TValue>,
 ): BTreeEntry<TKey, TValue> =>
   Object.freeze(entry) as unknown as BTreeEntry<TKey, TValue>;
+
+/**
+ * Creates a frozen LeafEntry with a canonical property order.
+ * All entry creation MUST go through this function to guarantee a single
+ * V8 hidden class across all entries in the tree.
+ */
+export const createEntry = <TKey, TValue>(
+  key: TKey,
+  entryId: EntryId,
+  value: TValue,
+): LeafEntry<TKey, TValue> =>
+  Object.freeze({ key, entryId, value }) as unknown as LeafEntry<TKey, TValue>;
 
 export interface LeafNode<TKey, TValue> {
   kind: typeof NODE_LEAF;

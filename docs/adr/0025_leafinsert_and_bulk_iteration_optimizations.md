@@ -29,7 +29,7 @@ Single-entry APIs (`peekFirst`, `findFirst`, `range`, etc.) continue to return s
 
 ### 4. Deduplicate traversal helpers
 
-`collectInternalEntries` (used only by `clone`) became identical to `snapshotEntries` after the zero-copy change. It was removed; `clone` now calls `snapshotEntries` directly.
+`snapshotEntries` (public API, frozen entries) and `collectInternalEntries` (internal use, unfrozen entries for clone) remain as separate functions. `snapshotEntries` applies `freezeEntry` for safe external exposure, while `collectInternalEntries` returns raw internal references for internal operations like `clone()` that need unfrozen entries for `putMany`.
 
 ## Consequences
 

@@ -1,5 +1,4 @@
 import { deleteRangeEntries } from './btree/deleteRange.js';
-import { applyAutoScaleCapacitySnapshot } from './btree/autoScale.js';
 import {
   putEntry,
   putManyEntries,
@@ -32,6 +31,7 @@ import {
   type BTreeJSON,
 } from './btree/serialization.js';
 import {
+  applyAutoScaleCapacitySnapshot,
   createInitialState,
   resetAutoScaleToTier0,
 } from './btree/autoScale.js';
@@ -61,9 +61,9 @@ import { BTreeValidationError } from './errors.js';
 import { assertInvariants } from './btree/integrity.js';
 import { getStats } from './btree/stats.js';
 
-export type { BTreeJSON };
 export type {
   BTreeEntry,
+  BTreeJSON,
   BTreeStats,
   DeleteRebalancePolicy,
   DuplicateKeyPolicy,
@@ -158,9 +158,7 @@ export class InMemoryBTree<TKey, TValue> {
     this.state.entryCount = 0;
     this.state._cursor.leaf = emptyLeaf;
     this.state._cursor.index = 0;
-    if (this.state.entryKeys !== null) {
-      this.state.entryKeys.clear();
-    }
+    this.state.entryKeys?.clear();
     if (this.state.autoScale) {
       resetAutoScaleToTier0(this.state);
     }

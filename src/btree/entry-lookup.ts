@@ -5,6 +5,7 @@ import {
   updateMinKeyInAncestors,
 } from './rebalance.js';
 import {
+  createEntry,
   leafEntryAt,
   leafEntryCount,
   leafRemoveAt,
@@ -59,7 +60,7 @@ export const updateEntryById = <TKey, TValue>(
   const found = findLeafEntryBySequence(state, userKey, entryId);
   if (found === null) return null;
   const entry = leafEntryAt(found.leaf, found.index);
-  const updated = { entryId: entry.entryId, key: entry.key, value: newValue };
+  const updated = createEntry(entry.key, entry.entryId, newValue);
   found.leaf.entries[found.leaf.entryOffset + found.index] = updated;
   return updated;
 };
