@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.6](https://github.com/hjmsano/frostpillar-btree/compare/v0.2.5...v0.2.6) (2026-04-08)
+
+
+### Bug Fixes
+
+* add ConcurrentInMemoryBTree missing ops and harden replay safety ([cca7623](https://github.com/hjmsano/frostpillar-btree/commit/cca7623ebfe6277fef5415b8398686904af42bda))
+
 ## [0.2.5](https://github.com/hjmsano/frostpillar-btree/compare/v0.2.4...v0.2.5) (2026-04-07)
 
 
