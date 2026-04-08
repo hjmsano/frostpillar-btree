@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.7](https://github.com/hjmsano/frostpillar-btree/compare/v0.2.6...v0.2.7) (2026-04-08)
+
+
+### Bug Fixes
+
+* remove `leafInsertAt` splice fallback and harden bulk read safety with frozen entries ([e8de942](https://github.com/hjmsano/frostpillar-btree/commit/e8de94223b8ff55cfc7562c0f4aee2e8b564acd1))
+
 ## [0.2.6](https://github.com/hjmsano/frostpillar-btree/compare/v0.2.5...v0.2.6) (2026-04-08)
 
 ### Bug Fixes
