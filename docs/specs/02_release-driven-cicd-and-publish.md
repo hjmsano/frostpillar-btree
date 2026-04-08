@@ -20,6 +20,7 @@ In scope:
 - hybrid delivery contract (GitHub Release bundle + npm package publish)
 
 Out of scope:
+
 - custom release-note authoring beyond generated notes
 
 ## 2. Trigger Contract

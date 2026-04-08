@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  InMemoryBTree,
-} from '../src/index.js';
+import { InMemoryBTree } from '../src/index.js';
 
 // ---------------------------------------------------------------------------
 // Helper
@@ -44,7 +42,10 @@ void test('entries() iterator observes inserts that happen after creation', (): 
   // The iterator walks the leaf chain — inserted entry may or may not appear
   // depending on which leaf it lands in. The key invariant is no crash and
   // the tree remains valid.
-  assert.ok(rest.length >= 1, 'iterator should yield at least remaining entries');
+  assert.ok(
+    rest.length >= 1,
+    'iterator should yield at least remaining entries',
+  );
   tree.assertInvariants();
 });
 

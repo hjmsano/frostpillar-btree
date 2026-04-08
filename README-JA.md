@@ -399,6 +399,24 @@ tree.forEach((entry) => {
 });
 ```
 
+**`forEachRange(startKey, endKey, callback, options?)`** -- 配列を生成せずに範囲内のエントリを反復します。
+
+```ts
+tree.forEachRange(10, 20, (entry) => {
+  console.log(entry.key, entry.value);
+});
+
+// 排他的境界の指定
+tree.forEachRange(
+  10,
+  20,
+  (entry) => {
+    /* ... */
+  },
+  { lowerBound: 'exclusive' },
+);
+```
+
 **`snapshot()`** -- 全エントリをソート順で取得します。
 
 ```ts
@@ -763,11 +781,13 @@ try {
 `ConcurrentInMemoryBTree` は共有ストアが**信頼されている**ことを前提としています。悪意を持って細工されたミューテーションペイロードや、異常に大きなペイロードに対する防御機能はありません。
 
 **信頼境界：**
+
 - ストアはあなたのアプリケーションの管理下にあること。
 - 同一ストアを共有するすべてのインスタンスは同一の設定を使用すること（最初の書き込み時に `init` ミューテーションの設定フィンガープリントで検証されますが、リプレイバッチに `init` が含まれている場合に限ります）。
 - ミューテーションはリプレイ前に構造的に検証されますが、セマンティックな正確性（キー型の整合性など）は呼び出し側の責任です。
 
 **共有・マルチテナントデプロイメントにおける堅牢化の推奨事項：**
+
 - 認可レイヤーなしに `append` や `getLogEntriesSince` を信頼されていないクライアントに公開しないこと。
 - 格納するミューテーションペイロードのサイズ制限をストアレベルで適用してから `ConcurrentInMemoryBTree` に渡すこと。
 - `maxSyncMutationsPerBatch` を使用して、1回の sync 呼び出しで適用するミューテーション数を制限すること（デフォルト：100,000）。
@@ -779,42 +799,43 @@ try {
 
 ### InMemoryBTree
 
-| メソッド             | シグネチャ                                                                            | 説明                                                                              |
-| -------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `put`                | `(key: TKey, value: TValue) => EntryId`                                               | キーバリューペアを挿入し、`EntryId` を返す。                                      |
-| `putMany`            | `(entries: readonly { key: TKey; value: TValue }[]) => EntryId[]`                     | ソート済みエントリの一括挿入。空のツリーでは O(n)。非空ツリーではカーソル最適化。 |
-| `remove`             | `(key: TKey) => BTreeEntry<TKey, TValue> \| null`                                     | 指定キーに一致する最初のエントリを削除する。                                      |
-| `removeById`         | `(entryId: EntryId) => BTreeEntry<TKey, TValue> \| null`                              | ID でエントリを削除する。                                                         |
-| `peekById`           | `(entryId: EntryId) => BTreeEntry<TKey, TValue> \| null`                              | ID でエントリを削除せずに参照する。                                               |
-| `updateById`         | `(entryId: EntryId, value: TValue) => BTreeEntry<TKey, TValue> \| null`               | ID でエントリの値を更新する。                                                     |
-| `popFirst`           | `() => BTreeEntry<TKey, TValue> \| null`                                              | 最小キーのエントリを削除して返す。                                                |
-| `popLast`            | `() => BTreeEntry<TKey, TValue> \| null`                                              | 最大キーのエントリを削除して返す。                                                |
-| `peekFirst`          | `() => BTreeEntry<TKey, TValue> \| null`                                              | 最小キーのエントリを削除せずに返す。                                              |
-| `peekLast`           | `() => BTreeEntry<TKey, TValue> \| null`                                              | 最大のエントリを削除せずに返す。                                                  |
-| `findFirst`          | `(key: TKey) => BTreeEntry<TKey, TValue> \| null`                                     | キーに一致する最初のエントリを返す。                                              |
-| `findLast`           | `(key: TKey) => BTreeEntry<TKey, TValue> \| null`                                     | キーに一致する最後のエントリを返す。                                              |
-| `get`                | `(key: TKey) => TValue \| null`                                                       | 指定キーの最初の値を返す。キーがない場合は null。                                 |
-| `hasKey`             | `(key: TKey) => boolean`                                                              | 指定キーのエントリが 1 件以上存在するか確認する。                                 |
-| `count`              | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => number`                     | 配列割り当てなしで範囲内のエントリ数を返す。境界はデフォルトで包含。              |
-| `range`              | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => BTreeEntry<TKey, TValue>[]` | startKey から endKey のエントリを返す。境界はデフォルトで包含。                   |
-| `nextHigherKey`      | `(key: TKey) => TKey \| null`                                                         | 指定キーより大きい次のキーを返す。                                                |
-| `nextLowerKey`       | `(key: TKey) => TKey \| null`                                                         | 指定キーより小さい次のキーを返す。                                                |
-| `getPairOrNextLower` | `(key: TKey) => BTreeEntry<TKey, TValue> \| null`                                     | 一致エントリまたはそれより小さい最大のエントリを返す。                            |
-| `deleteRange`        | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => number`                     | 範囲内のエントリを削除し、削除件数を返す。                                        |
-| `entries`            | `() => IterableIterator<BTreeEntry<TKey, TValue>>`                                    | 昇順で全エントリを遅延イテレーションする。                                        |
-| `entriesReversed`    | `() => IterableIterator<BTreeEntry<TKey, TValue>>`                                    | 降順で全エントリを遅延イテレーションする。                                        |
-| `keys`               | `() => IterableIterator<TKey>`                                                        | 昇順で全キーを遅延イテレーションする。                                            |
-| `values`             | `() => IterableIterator<TValue>`                                                      | 昇順で全値を遅延イテレーションする。                                              |
-| `[Symbol.iterator]`  | `() => IterableIterator<BTreeEntry<TKey, TValue>>`                                    | `for...of` やスプレッドを有効にする。`entries()` に委譲。                         |
-| `forEach`            | `(callback: (entry) => void, thisArg?) => void`                                       | 昇順で各エントリを訪問する。                                                      |
-| `snapshot`           | `() => BTreeEntry<TKey, TValue>[]`                                                    | 全エントリをソート順で返す。                                                      |
-| `clear`              | `() => void`                                                                          | 全エントリを削除し、空の状態に O(1) でリセットする。                              |
-| `size`               | `() => number`                                                                        | エントリ数を返す。                                                                |
-| `getStats`           | `() => BTreeStats`                                                                    | 構造統計を返す。                                                                  |
-| `assertInvariants`   | `() => void`                                                                          | B+ tree の構造的な整合性を検証する。不正な場合はスローする。                      |
-| `clone`              | `() => InMemoryBTree<TKey, TValue>`                                                   | 構造的に独立したコピーを返す（キー・値参照は共有）。                              |
-| `toJSON`             | `() => BTreeJSON<TKey, TValue>`                                                       | バージョン付き JSON 互換ペイロードにシリアライズする。                            |
-| `fromJSON` (静的)    | `(json, compareKeys) => InMemoryBTree<TKey, TValue>`                                  | `toJSON` ペイロードからツリーを再構築する。                                       |
+| メソッド             | シグネチャ                                                                                 | 説明                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| `put`                | `(key: TKey, value: TValue) => EntryId`                                                    | キーバリューペアを挿入し、`EntryId` を返す。                                      |
+| `putMany`            | `(entries: readonly { key: TKey; value: TValue }[]) => EntryId[]`                          | ソート済みエントリの一括挿入。空のツリーでは O(n)。非空ツリーではカーソル最適化。 |
+| `remove`             | `(key: TKey) => BTreeEntry<TKey, TValue> \| null`                                          | 指定キーに一致する最初のエントリを削除する。                                      |
+| `removeById`         | `(entryId: EntryId) => BTreeEntry<TKey, TValue> \| null`                                   | ID でエントリを削除する。                                                         |
+| `peekById`           | `(entryId: EntryId) => BTreeEntry<TKey, TValue> \| null`                                   | ID でエントリを削除せずに参照する。                                               |
+| `updateById`         | `(entryId: EntryId, value: TValue) => BTreeEntry<TKey, TValue> \| null`                    | ID でエントリの値を更新する。                                                     |
+| `popFirst`           | `() => BTreeEntry<TKey, TValue> \| null`                                                   | 最小キーのエントリを削除して返す。                                                |
+| `popLast`            | `() => BTreeEntry<TKey, TValue> \| null`                                                   | 最大キーのエントリを削除して返す。                                                |
+| `peekFirst`          | `() => BTreeEntry<TKey, TValue> \| null`                                                   | 最小キーのエントリを削除せずに返す。                                              |
+| `peekLast`           | `() => BTreeEntry<TKey, TValue> \| null`                                                   | 最大のエントリを削除せずに返す。                                                  |
+| `findFirst`          | `(key: TKey) => BTreeEntry<TKey, TValue> \| null`                                          | キーに一致する最初のエントリを返す。                                              |
+| `findLast`           | `(key: TKey) => BTreeEntry<TKey, TValue> \| null`                                          | キーに一致する最後のエントリを返す。                                              |
+| `get`                | `(key: TKey) => TValue \| null`                                                            | 指定キーの最初の値を返す。キーがない場合は null。                                 |
+| `hasKey`             | `(key: TKey) => boolean`                                                                   | 指定キーのエントリが 1 件以上存在するか確認する。                                 |
+| `count`              | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => number`                          | 配列割り当てなしで範囲内のエントリ数を返す。境界はデフォルトで包含。              |
+| `range`              | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => BTreeEntry<TKey, TValue>[]`      | startKey から endKey のエントリを返す。境界はデフォルトで包含。                   |
+| `nextHigherKey`      | `(key: TKey) => TKey \| null`                                                              | 指定キーより大きい次のキーを返す。                                                |
+| `nextLowerKey`       | `(key: TKey) => TKey \| null`                                                              | 指定キーより小さい次のキーを返す。                                                |
+| `getPairOrNextLower` | `(key: TKey) => BTreeEntry<TKey, TValue> \| null`                                          | 一致エントリまたはそれより小さい最大のエントリを返す。                            |
+| `deleteRange`        | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => number`                          | 範囲内のエントリを削除し、削除件数を返す。                                        |
+| `entries`            | `() => IterableIterator<BTreeEntry<TKey, TValue>>`                                         | 昇順で全エントリを遅延イテレーションする。                                        |
+| `entriesReversed`    | `() => IterableIterator<BTreeEntry<TKey, TValue>>`                                         | 降順で全エントリを遅延イテレーションする。                                        |
+| `keys`               | `() => IterableIterator<TKey>`                                                             | 昇順で全キーを遅延イテレーションする。                                            |
+| `values`             | `() => IterableIterator<TValue>`                                                           | 昇順で全値を遅延イテレーションする。                                              |
+| `[Symbol.iterator]`  | `() => IterableIterator<BTreeEntry<TKey, TValue>>`                                         | `for...of` やスプレッドを有効にする。`entries()` に委譲。                         |
+| `forEach`            | `(callback: (entry) => void, thisArg?) => void`                                            | 昇順で各エントリを訪問する。                                                      |
+| `forEachRange`       | `(startKey: TKey, endKey: TKey, callback: (entry) => void, options?: RangeBounds) => void` | 配列を生成せずに範囲内のエントリを反復する。                                      |
+| `snapshot`           | `() => BTreeEntry<TKey, TValue>[]`                                                         | 全エントリをソート順で返す。                                                      |
+| `clear`              | `() => void`                                                                               | 全エントリを削除し、空の状態に O(1) でリセットする。                              |
+| `size`               | `() => number`                                                                             | エントリ数を返す。                                                                |
+| `getStats`           | `() => BTreeStats`                                                                         | 構造統計を返す。                                                                  |
+| `assertInvariants`   | `() => void`                                                                               | B+ tree の構造的な整合性を検証する。不正な場合はスローする。                      |
+| `clone`              | `() => InMemoryBTree<TKey, TValue>`                                                        | 構造的に独立したコピーを返す（キー・値参照は共有）。                              |
+| `toJSON`             | `() => BTreeJSON<TKey, TValue>`                                                            | バージョン付き JSON 互換ペイロードにシリアライズする。                            |
+| `fromJSON` (静的)    | `(json, compareKeys) => InMemoryBTree<TKey, TValue>`                                       | `toJSON` ペイロードからツリーを再構築する。                                       |
 
 **コンストラクタ：**
 
@@ -826,43 +847,44 @@ new InMemoryBTree<TKey, TValue>(config: InMemoryBTreeConfig<TKey>)
 
 `InMemoryBTree` メソッドを `Promise` を返す非同期版として提供します。書き込みは shared store を介して協調し、`readMode` が `'strong'`（デフォルト）の場合は読み取り前に同期します。`readMode` が `'local'` の場合、読み取りは同期なしでローカルツリーに対して実行されます。
 
-| メソッド             | シグネチャ                                                                                     | 説明                                               |
-| -------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `sync`               | `() => Promise<void>`                                                                          | shared store の最新ログを取得して適用する。        |
-| `put`                | `(key: TKey, value: TValue) => Promise<EntryId>`                                               | 楽観的並行制御で挿入する。                         |
-| `putMany`            | `(entries: readonly { key: TKey; value: TValue }[]) => Promise<EntryId[]>`                     | 楽観的並行制御で一括挿入する。                     |
-| `remove`             | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                     | 指定キーに一致する最初のエントリを削除する。       |
-| `removeById`         | `(entryId: EntryId) => Promise<BTreeEntry<TKey, TValue> \| null>`                              | ID でエントリを削除する。                          |
-| `peekById`           | `(entryId: EntryId) => Promise<BTreeEntry<TKey, TValue> \| null>`                              | ID でエントリを参照する（事前に同期）。            |
-| `updateById`         | `(entryId: EntryId, value: TValue) => Promise<BTreeEntry<TKey, TValue> \| null>`               | 楽観的並行制御で ID のエントリ値を更新する。       |
-| `popFirst`           | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                              | 最小キーのエントリを削除して返す。                 |
-| `popLast`            | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                              | 最大キーのエントリを削除して返す。                 |
-| `deleteRange`        | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => Promise<number>`                     | 楽観的並行制御で範囲内のエントリを削除する。       |
-| `clear`              | `() => Promise<void>`                                                                          | 楽観的並行制御で全エントリを削除する。             |
-| `peekFirst`          | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                              | 最小キーのエントリを返す（事前に同期）。           |
-| `peekLast`           | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                              | 最大キーのエントリを返す（事前に同期）。           |
-| `findFirst`          | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                     | キーに一致する最初のエントリを返す（事前に同期）。 |
-| `findLast`           | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                     | キーに一致する最後のエントリを返す（事前に同期）。 |
-| `get`                | `(key: TKey) => Promise<TValue \| null>`                                                       | キーの値を取得する（事前に同期）。                 |
-| `hasKey`             | `(key: TKey) => Promise<boolean>`                                                              | キーの存在を確認する（事前に同期）。               |
-| `count`              | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => Promise<number>`                     | 範囲内のエントリ数を返す（事前に同期）。           |
-| `range`              | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => Promise<BTreeEntry<TKey, TValue>[]>` | 範囲クエリ（事前に同期）。                         |
-| `nextHigherKey`      | `(key: TKey) => Promise<TKey \| null>`                                                         | 指定キーより大きい次のキー（事前に同期）。         |
-| `nextLowerKey`       | `(key: TKey) => Promise<TKey \| null>`                                                         | 指定キーより小さい次のキー（事前に同期）。         |
-| `getPairOrNextLower` | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                     | 一致または次に小さいエントリ（事前に同期）。       |
-| `entries`            | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                    | 全エントリを配列で返す（事前に同期）。             |
-| `entriesReversed`    | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                    | 全エントリを逆順で配列として返す（事前に同期）。   |
-| `keys`               | `() => Promise<TKey[]>`                                                                        | 全キーを配列で返す（事前に同期）。                 |
-| `values`             | `() => Promise<TValue[]>`                                                                      | 全値を配列で返す（事前に同期）。                   |
-| `forEach`            | `(callback: (entry: BTreeEntry<TKey, TValue>) => void) => Promise<void>`                      | 全エントリを反復する（事前に同期）。               |
-| `snapshot`           | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                    | 全エントリを返す（事前に同期）。                   |
-| `size`               | `() => Promise<number>`                                                                        | エントリ数を返す（事前に同期）。                   |
-| `getStats`           | `() => Promise<BTreeStats>`                                                                    | 構造統計を返す（事前に同期）。                     |
-| `assertInvariants`   | `() => Promise<void>`                                                                          | 構造的な整合性を検証する（事前に同期）。           |
-| `clone`              | `() => Promise<InMemoryBTree<TKey, TValue>>`                                                   | 独立したローカルコピーを返す（事前に同期）。       |
-| `toJSON`             | `() => Promise<BTreeJSON<TKey, TValue>>`                                                       | JSON にシリアライズする（事前に同期）。            |
-| `fromJSON` (static)  | `(json: BTreeJSON<TKey, TValue>, compareKeys: KeyComparator<TKey>) => InMemoryBTree<TKey, TValue>` | JSON からデシリアライズする（ローカルツリーを返す）。 |
-| `[Symbol.asyncIterator]` | `() => AsyncIterableIterator<BTreeEntry<TKey, TValue>>`                                    | 全エントリを非同期反復する（事前に同期）。         |
+| メソッド                 | シグネチャ                                                                                         | 説明                                                  |
+| ------------------------ | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `sync`                   | `() => Promise<void>`                                                                              | shared store の最新ログを取得して適用する。           |
+| `put`                    | `(key: TKey, value: TValue) => Promise<EntryId>`                                                   | 楽観的並行制御で挿入する。                            |
+| `putMany`                | `(entries: readonly { key: TKey; value: TValue }[]) => Promise<EntryId[]>`                         | 楽観的並行制御で一括挿入する。                        |
+| `remove`                 | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                         | 指定キーに一致する最初のエントリを削除する。          |
+| `removeById`             | `(entryId: EntryId) => Promise<BTreeEntry<TKey, TValue> \| null>`                                  | ID でエントリを削除する。                             |
+| `peekById`               | `(entryId: EntryId) => Promise<BTreeEntry<TKey, TValue> \| null>`                                  | ID でエントリを参照する（事前に同期）。               |
+| `updateById`             | `(entryId: EntryId, value: TValue) => Promise<BTreeEntry<TKey, TValue> \| null>`                   | 楽観的並行制御で ID のエントリ値を更新する。          |
+| `popFirst`               | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                                  | 最小キーのエントリを削除して返す。                    |
+| `popLast`                | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                                  | 最大キーのエントリを削除して返す。                    |
+| `deleteRange`            | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => Promise<number>`                         | 楽観的並行制御で範囲内のエントリを削除する。          |
+| `clear`                  | `() => Promise<void>`                                                                              | 楽観的並行制御で全エントリを削除する。                |
+| `peekFirst`              | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                                  | 最小キーのエントリを返す（事前に同期）。              |
+| `peekLast`               | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                                  | 最大キーのエントリを返す（事前に同期）。              |
+| `findFirst`              | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                         | キーに一致する最初のエントリを返す（事前に同期）。    |
+| `findLast`               | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                         | キーに一致する最後のエントリを返す（事前に同期）。    |
+| `get`                    | `(key: TKey) => Promise<TValue \| null>`                                                           | キーの値を取得する（事前に同期）。                    |
+| `hasKey`                 | `(key: TKey) => Promise<boolean>`                                                                  | キーの存在を確認する（事前に同期）。                  |
+| `count`                  | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => Promise<number>`                         | 範囲内のエントリ数を返す（事前に同期）。              |
+| `range`                  | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => Promise<BTreeEntry<TKey, TValue>[]>`     | 範囲クエリ（事前に同期）。                            |
+| `nextHigherKey`          | `(key: TKey) => Promise<TKey \| null>`                                                             | 指定キーより大きい次のキー（事前に同期）。            |
+| `nextLowerKey`           | `(key: TKey) => Promise<TKey \| null>`                                                             | 指定キーより小さい次のキー（事前に同期）。            |
+| `getPairOrNextLower`     | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                         | 一致または次に小さいエントリ（事前に同期）。          |
+| `entries`                | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                        | 全エントリを配列で返す（事前に同期）。                |
+| `entriesReversed`        | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                        | 全エントリを逆順で配列として返す（事前に同期）。      |
+| `keys`                   | `() => Promise<TKey[]>`                                                                            | 全キーを配列で返す（事前に同期）。                    |
+| `values`                 | `() => Promise<TValue[]>`                                                                          | 全値を配列で返す（事前に同期）。                      |
+| `forEach`                | `(callback: (entry: BTreeEntry<TKey, TValue>) => void) => Promise<void>`                           | 全エントリを反復する（事前に同期）。                  |
+| `forEachRange`           | `(startKey, endKey, callback, options?) => Promise<void>`                                          | 範囲内のエントリを反復する（事前に同期）。            |
+| `snapshot`               | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                        | 全エントリを返す（事前に同期）。                      |
+| `size`                   | `() => Promise<number>`                                                                            | エントリ数を返す（事前に同期）。                      |
+| `getStats`               | `() => Promise<BTreeStats>`                                                                        | 構造統計を返す（事前に同期）。                        |
+| `assertInvariants`       | `() => Promise<void>`                                                                              | 構造的な整合性を検証する（事前に同期）。              |
+| `clone`                  | `() => Promise<InMemoryBTree<TKey, TValue>>`                                                       | 独立したローカルコピーを返す（事前に同期）。          |
+| `toJSON`                 | `() => Promise<BTreeJSON<TKey, TValue>>`                                                           | JSON にシリアライズする（事前に同期）。               |
+| `fromJSON` (static)      | `(json: BTreeJSON<TKey, TValue>, compareKeys: KeyComparator<TKey>) => InMemoryBTree<TKey, TValue>` | JSON からデシリアライズする（ローカルツリーを返す）。 |
+| `[Symbol.asyncIterator]` | `() => AsyncIterableIterator<BTreeEntry<TKey, TValue>>`                                            | 全エントリを非同期反復する（事前に同期）。            |
 
 **コンストラクタ：**
 

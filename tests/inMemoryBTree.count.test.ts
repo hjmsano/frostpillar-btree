@@ -30,9 +30,18 @@ void test('count() returns 0 for empty tree with all bound combinations', (): vo
   const tree = numTree();
   assert.equal(tree.count(1, 10, { lowerBound: 'exclusive' }), 0);
   assert.equal(tree.count(1, 10, { upperBound: 'exclusive' }), 0);
-  assert.equal(tree.count(1, 10, { lowerBound: 'exclusive', upperBound: 'exclusive' }), 0);
-  assert.equal(tree.count(1, 10, { lowerBound: 'inclusive', upperBound: 'inclusive' }), 0);
-  assert.equal(tree.count(5, 5, { lowerBound: 'exclusive', upperBound: 'exclusive' }), 0);
+  assert.equal(
+    tree.count(1, 10, { lowerBound: 'exclusive', upperBound: 'exclusive' }),
+    0,
+  );
+  assert.equal(
+    tree.count(1, 10, { lowerBound: 'inclusive', upperBound: 'inclusive' }),
+    0,
+  );
+  assert.equal(
+    tree.count(5, 5, { lowerBound: 'exclusive', upperBound: 'exclusive' }),
+    0,
+  );
 });
 
 // ===========================================================================
@@ -132,14 +141,20 @@ void test('count() with both bounds exclusive', (): void => {
   tree.put(3, 'v3');
   tree.put(4, 'v4');
 
-  assert.equal(tree.count(1, 4, { lowerBound: 'exclusive', upperBound: 'exclusive' }), 2);
+  assert.equal(
+    tree.count(1, 4, { lowerBound: 'exclusive', upperBound: 'exclusive' }),
+    2,
+  );
 });
 
 void test('count() returns 0 when both bounds exclusive and start === end', (): void => {
   const tree = numTree();
   tree.put(5, 'v5');
 
-  assert.equal(tree.count(5, 5, { lowerBound: 'exclusive', upperBound: 'exclusive' }), 0);
+  assert.equal(
+    tree.count(5, 5, { lowerBound: 'exclusive', upperBound: 'exclusive' }),
+    0,
+  );
 });
 
 void test('count() with exclusive bounds and duplicate keys', (): void => {
@@ -194,7 +209,8 @@ void test('count() result matches range().length', (): void => {
   );
   assert.equal(
     tree.count(5, 45, { lowerBound: 'exclusive', upperBound: 'exclusive' }),
-    tree.range(5, 45, { lowerBound: 'exclusive', upperBound: 'exclusive' }).length,
+    tree.range(5, 45, { lowerBound: 'exclusive', upperBound: 'exclusive' })
+      .length,
   );
   tree.assertInvariants();
 });

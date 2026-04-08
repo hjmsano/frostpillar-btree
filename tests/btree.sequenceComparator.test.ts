@@ -127,7 +127,10 @@ void test('sequence tie-break: branch-level navigation preserves insertion order
 
   // All IDs must be monotonically increasing (sequence order)
   for (let i = 1; i < ids.length; i += 1) {
-    assert.ok(ids[i - 1] < ids[i], `entryId[${i - 1}] must be less than entryId[${i}]`);
+    assert.ok(
+      ids[i - 1] < ids[i],
+      `entryId[${i - 1}] must be less than entryId[${i}]`,
+    );
   }
 
   // range() traverses branch nodes via selectBranchChild; order must be insertion order
@@ -148,7 +151,16 @@ void test('sequence tie-break: branch navigation for findLeafForKey uses correct
   // With the tri-value form, the sign is always exact.
   const tree = dupTree();
   // Fill with duplicates to create branch nodes
-  const values = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth'];
+  const values = [
+    'first',
+    'second',
+    'third',
+    'fourth',
+    'fifth',
+    'sixth',
+    'seventh',
+    'eighth',
+  ];
   const ids: number[] = values.map((v) => tree.put(99, v));
 
   const first = tree.peekFirst();
@@ -179,7 +191,9 @@ void test('compareNodeKeys: invariant check passes when adjacent leaves are in s
   }
 
   // Must not throw — compareNodeKeys must correctly order keys across leaf boundaries
-  assert.doesNotThrow(() => { tree.assertInvariants(); });
+  assert.doesNotThrow(() => {
+    tree.assertInvariants();
+  });
 });
 
 void test('compareNodeKeys: equal sequences on equal keys are treated as equal (not out-of-order)', (): void => {
@@ -199,7 +213,8 @@ void test('compareNodeKeys: equal sequences on equal keys are treated as equal (
   }
 
   // nextSequence starts at 0, so entryIds are 0..8 for 9 insertions.
-  const state = (tree as unknown as { state: BTreeState<number, string> }).state;
+  const state = (tree as unknown as { state: BTreeState<number, string> })
+    .state;
   // Verify all sequences assigned so far are 0..8
   const snap = tree.snapshot();
   for (let i = 0; i < snap.length; i += 1) {
@@ -209,7 +224,9 @@ void test('compareNodeKeys: equal sequences on equal keys are treated as equal (
   assert.equal(state.nextSequence, 9);
 
   // Tree must be valid — compareNodeKeys with equal left/right sequences must return 0
-  assert.doesNotThrow(() => { tree.assertInvariants(); });
+  assert.doesNotThrow(() => {
+    tree.assertInvariants();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -228,7 +245,8 @@ void test('sequence tie-break: correct ordering when entryId values are large', 
   });
 
   // Advance sequence counter close to a large value
-  const state = (tree as unknown as { state: BTreeState<number, string> }).state;
+  const state = (tree as unknown as { state: BTreeState<number, string> })
+    .state;
   // Use a large but safe sequence offset (well below MAX_SAFE_INTEGER)
   state.nextSequence = 2 ** 40;
 

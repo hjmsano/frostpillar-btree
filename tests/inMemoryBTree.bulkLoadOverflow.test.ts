@@ -29,8 +29,8 @@ void test('putMany throws when baseSequence + entries.length > MAX_SAFE_INTEGER'
         { key: 3, value: 'c' },
       ]),
     (error: Error): boolean =>
-      error instanceof BTreeValidationError
-      && error.message.includes('overflow'),
+      error instanceof BTreeValidationError &&
+      error.message.includes('overflow'),
   );
 });
 
@@ -59,7 +59,10 @@ void test('putMany on non-empty tree falls back to sequential insert', (): void 
 
   tree.put(1, 'a');
 
-  const ids = tree.putMany([{ key: 2, value: 'b' }, { key: 3, value: 'c' }]);
+  const ids = tree.putMany([
+    { key: 2, value: 'b' },
+    { key: 3, value: 'c' },
+  ]);
   assert.equal(ids.length, 2);
   assert.equal(tree.size(), 3);
 });
@@ -98,7 +101,7 @@ void test('single insert after bulk load near MAX_SAFE_INTEGER throws overflow',
   assert.throws(
     () => tree.put(2, 'b'),
     (error: Error): boolean =>
-      error instanceof BTreeValidationError
-      && error.message.includes('overflow'),
+      error instanceof BTreeValidationError &&
+      error.message.includes('overflow'),
   );
 });

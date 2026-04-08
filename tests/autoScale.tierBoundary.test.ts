@@ -8,8 +8,9 @@ interface InternalTree {
   state: BTreeState<number, number>;
 }
 
-const accessState = (tree: InMemoryBTree<number, number>): BTreeState<number, number> =>
-  (tree as unknown as InternalTree).state;
+const accessState = (
+  tree: InMemoryBTree<number, number>,
+): BTreeState<number, number> => (tree as unknown as InternalTree).state;
 
 const createAutoScaleTree = (): InMemoryBTree<number, number> =>
   new InMemoryBTree<number, number>({
@@ -108,8 +109,16 @@ void test('autoScale: mass deletion does NOT downscale — capacity preserved at
 
   // Capacity must still be at tier 2
   const stateAfterDeletion = accessState(tree);
-  assert.equal(stateAfterDeletion.maxLeafEntries, 128, 'maxLeafEntries should not decrease after deletion');
-  assert.equal(stateAfterDeletion.maxBranchChildren, 128, 'maxBranchChildren should not decrease after deletion');
+  assert.equal(
+    stateAfterDeletion.maxLeafEntries,
+    128,
+    'maxLeafEntries should not decrease after deletion',
+  );
+  assert.equal(
+    stateAfterDeletion.maxBranchChildren,
+    128,
+    'maxBranchChildren should not decrease after deletion',
+  );
   tree.assertInvariants();
 });
 
@@ -123,7 +132,11 @@ void test('autoScale: deleteRange does NOT downscale capacity', (): void => {
 
   tree.deleteRange(0, 990);
   assert.equal(tree.size(), 9);
-  assert.equal(accessState(tree).maxLeafEntries, 64, 'capacity should remain after deleteRange');
+  assert.equal(
+    accessState(tree).maxLeafEntries,
+    64,
+    'capacity should remain after deleteRange',
+  );
   tree.assertInvariants();
 });
 
@@ -163,15 +176,26 @@ void test('autoScale: cloned tree scales independently from original', (): void 
   const cloned = original.clone();
 
   assert.equal(cloned.size(), 500);
-  assert.equal(accessState(cloned).maxLeafEntries, accessState(original).maxLeafEntries);
+  assert.equal(
+    accessState(cloned).maxLeafEntries,
+    accessState(original).maxLeafEntries,
+  );
 
   // Scale up the clone past tier 1 boundary without affecting the original
   for (let i = 500; i < 1100; i += 1) {
     cloned.put(i, i);
   }
 
-  assert.equal(accessState(cloned).maxLeafEntries, 64, 'clone should have scaled to tier 1');
-  assert.equal(accessState(original).maxLeafEntries, 32, 'original must remain at tier 0');
+  assert.equal(
+    accessState(cloned).maxLeafEntries,
+    64,
+    'clone should have scaled to tier 1',
+  );
+  assert.equal(
+    accessState(original).maxLeafEntries,
+    32,
+    'original must remain at tier 0',
+  );
   assert.equal(original.size(), 500);
   assert.equal(cloned.size(), 1100);
   original.assertInvariants();

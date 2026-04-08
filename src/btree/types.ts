@@ -12,6 +12,8 @@ export type KeyComparator<TKey> = (left: TKey, right: TKey) => number;
 
 export type DuplicateKeyPolicy = 'allow' | 'reject' | 'replace';
 
+export type DeleteRebalancePolicy = 'standard' | 'lazy';
+
 /**
  * Defines the inclusivity of the lower and upper bounds for a key range scan.
  * Both bounds default to `'inclusive'` when omitted.
@@ -30,9 +32,19 @@ export const normalizeDuplicateKeyPolicy = (
     return 'replace';
   }
   if (value !== 'allow' && value !== 'reject' && value !== 'replace') {
-    throw new BTreeValidationError(
-      `Invalid duplicateKeys option.`,
-    );
+    throw new BTreeValidationError(`Invalid duplicateKeys option.`);
+  }
+  return value;
+};
+
+export const normalizeDeleteRebalancePolicy = (
+  value: DeleteRebalancePolicy | undefined,
+): DeleteRebalancePolicy => {
+  if (value === undefined) {
+    return 'standard';
+  }
+  if (value !== 'standard' && value !== 'lazy') {
+    throw new BTreeValidationError(`Invalid deleteRebalancePolicy option.`);
   }
   return value;
 };
@@ -59,7 +71,7 @@ export interface LeafEntry<TKey, TValue> {
 
 /**
  * Shallow-copies a `LeafEntry` into a plain `BTreeEntry` for safe public API return.
- * Prevents callers from holding a reference that mutates when `updateById` is called.
+ * Used by single-entry read APIs to prevent callers from holding live internal references.
  */
 export const toPublicEntry = <TKey, TValue>(
   entry: LeafEntry<TKey, TValue>,
@@ -68,6 +80,16 @@ export const toPublicEntry = <TKey, TValue>(
   key: entry.key,
   value: entry.value,
 });
+
+/**
+ * Freezes and returns an internal entry for safe exposure via bulk read APIs.
+ * Cheaper than toPublicEntry (no allocation) but prevents external mutation.
+ * Idempotent: re-freezing an already-frozen object is a no-op in V8.
+ */
+export const freezeEntry = <TKey, TValue>(
+  entry: LeafEntry<TKey, TValue>,
+): BTreeEntry<TKey, TValue> =>
+  Object.freeze(entry) as unknown as BTreeEntry<TKey, TValue>;
 
 export interface LeafNode<TKey, TValue> {
   kind: typeof NODE_LEAF;
@@ -106,6 +128,7 @@ export interface BTreeState<TKey, TValue> {
   minBranchChildren: number;
   entryKeys: Map<EntryId, TKey> | null;
   autoScale: boolean;
+  deleteRebalancePolicy: DeleteRebalancePolicy;
   _nextAutoScaleThreshold: number;
   /** @internal Shared return object for navigation functions — never store a reference across calls. */
   _cursor: { leaf: LeafNode<TKey, TValue>; index: number };
@@ -118,6 +141,7 @@ export interface InMemoryBTreeConfig<TKey> {
   duplicateKeys?: DuplicateKeyPolicy;
   enableEntryIdLookup?: boolean;
   autoScale?: boolean;
+  deleteRebalancePolicy?: DeleteRebalancePolicy;
 }
 
 export interface BTreeStats {
@@ -159,7 +183,11 @@ export const normalizeNodeCapacity = (
     return defaultValue;
   }
 
-  if (!Number.isInteger(value) || value < MIN_NODE_CAPACITY || value > MAX_NODE_CAPACITY) {
+  if (
+    !Number.isInteger(value) ||
+    value < MIN_NODE_CAPACITY ||
+    value > MAX_NODE_CAPACITY
+  ) {
     throw new BTreeValidationError(
       `${field}: integer ${MIN_NODE_CAPACITY}–${MAX_NODE_CAPACITY} required.`,
     );
@@ -184,4 +212,3 @@ export {
   branchInsertAt,
   branchRemoveAt,
 } from './node-ops.js';
-

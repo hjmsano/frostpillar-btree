@@ -6,35 +6,23 @@ import {
   BTreeValidationError,
   ConcurrentInMemoryBTree,
 } from '../src/index.js';
-import type { BTreeMutation, SharedTreeLog, SharedTreeStore } from '../src/index.js';
+import type {
+  BTreeMutation,
+  SharedTreeLog,
+  SharedTreeStore,
+} from '../src/index.js';
 
-import { AtomicMemorySharedTreeStore } from './helpers/sharedTreeStoreStubs.js';
+import {
+  AtomicMemorySharedTreeStore,
+  SyncCountingStore,
+} from './helpers/sharedTreeStoreStubs.js';
 
 const numCmp = (left: number, right: number): number => left - right;
 
-// --- Store that counts getLogEntriesSince calls ---
-class SyncCountingStore<TKey, TValue> implements SharedTreeStore<TKey, TValue> {
-  public syncCount = 0;
-  private readonly delegate: AtomicMemorySharedTreeStore<TKey, TValue>;
-
-  public constructor(delegate: AtomicMemorySharedTreeStore<TKey, TValue>) {
-    this.delegate = delegate;
-  }
-
-  public getLogEntriesSince(version: bigint): Promise<SharedTreeLog<TKey, TValue>> {
-    this.syncCount += 1;
-    return this.delegate.getLogEntriesSince(version);
-  }
-
-  public append(
-    expectedVersion: bigint,
-    mutations: BTreeMutation<TKey, TValue>[],
-  ): Promise<{ applied: boolean; version: bigint }> {
-    return this.delegate.append(expectedVersion, mutations);
-  }
-}
-
-class AppendCountingStore<TKey, TValue> implements SharedTreeStore<TKey, TValue> {
+class AppendCountingStore<TKey, TValue> implements SharedTreeStore<
+  TKey,
+  TValue
+> {
   public appendCount = 0;
   private readonly delegate: AtomicMemorySharedTreeStore<TKey, TValue>;
 
@@ -42,7 +30,9 @@ class AppendCountingStore<TKey, TValue> implements SharedTreeStore<TKey, TValue>
     this.delegate = delegate;
   }
 
-  public getLogEntriesSince(version: bigint): Promise<SharedTreeLog<TKey, TValue>> {
+  public getLogEntriesSince(
+    version: bigint,
+  ): Promise<SharedTreeLog<TKey, TValue>> {
     return this.delegate.getLogEntriesSince(version);
   }
 
@@ -72,7 +62,10 @@ void test('readMode defaults to strong: reads call sync', async (): Promise<void
   await tree.hasKey(1);
   await tree.size();
 
-  assert.ok(store.syncCount >= 3, `expected >= 3 syncs, got ${store.syncCount}`);
+  assert.ok(
+    store.syncCount >= 3,
+    `expected >= 3 syncs, got ${store.syncCount}`,
+  );
 });
 
 void test('readMode strong: explicit config value behaves like default', async (): Promise<void> => {
@@ -118,8 +111,15 @@ void test('readMode local: reads do not call sync', async (): Promise<void> => {
   await tree.nextHigherKey(0);
   await tree.nextLowerKey(2);
   await tree.getPairOrNextLower(1);
+  await tree.forEachRange(0, 10, (_entry): void => {
+    /* no-op */
+  });
 
-  assert.equal(store.syncCount, 0, 'local reads must not call store.getLogEntriesSince');
+  assert.equal(
+    store.syncCount,
+    0,
+    'local reads must not call store.getLogEntriesSince',
+  );
 });
 
 void test('readMode local: explicit sync catches up with remote mutations', async (): Promise<void> => {
@@ -161,7 +161,10 @@ void test('readMode local: writes still sync before appending', async (): Promis
   store.syncCount = 0;
   await tree.put(1, 'one');
   // Writes must still sync (as part of appendMutationAndApplyUnlocked)
-  assert.ok(store.syncCount >= 1, 'write ops must sync even in local read mode');
+  assert.ok(
+    store.syncCount >= 1,
+    'write ops must sync even in local read mode',
+  );
 });
 
 void test('readMode local: stale duplicate reject is detected before append', async (): Promise<void> => {
@@ -213,16 +216,13 @@ void test('readMode local: peekById works without sync', async (): Promise<void>
 
 void test('readMode invalid: throws BTreeConcurrencyError', (): void => {
   const store = new AtomicMemorySharedTreeStore<number, string>();
-  assert.throws(
-    (): void => {
-      new ConcurrentInMemoryBTree<number, string>({
-        compareKeys: numCmp,
-        store,
-        readMode: 'invalid' as 'strong',
-      });
-    },
-    BTreeConcurrencyError,
-  );
+  assert.throws((): void => {
+    new ConcurrentInMemoryBTree<number, string>({
+      compareKeys: numCmp,
+      store,
+      readMode: 'invalid' as 'strong',
+    });
+  }, BTreeConcurrencyError);
 });
 
 // --- readMode local: assertInvariants and getStats work ---
@@ -245,3 +245,5 @@ void test('readMode local: assertInvariants works without sync', async (): Promi
   assert.equal(stats.entryCount, 2);
   assert.equal(store.syncCount, 0);
 });
+
+// forEachRange read-mode tests are in concurrentInMemoryBTree.forEachRange.test.ts

@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  InMemoryBTree,
-  type EntryId,
-} from '../src/index.js';
+import { InMemoryBTree, type EntryId } from '../src/index.js';
 
 // ---------------------------------------------------------------------------
 // Helper
@@ -32,10 +29,11 @@ void test('putMany throws on unsorted input', (): void => {
   const tree = numTree();
 
   assert.throws(
-    () => tree.putMany([
-      { key: 3, value: 'a' },
-      { key: 1, value: 'b' },
-    ]),
+    () =>
+      tree.putMany([
+        { key: 3, value: 'a' },
+        { key: 1, value: 'b' },
+      ]),
     (err: unknown) =>
       err instanceof Error &&
       err.message === 'putMany: entries not in ascending order.',
@@ -47,10 +45,11 @@ void test('putMany throws on unsorted input (equal keys with reject policy)', ()
   const tree = numTree({ duplicateKeys: 'reject' });
 
   assert.throws(
-    () => tree.putMany([
-      { key: 1, value: 'a' },
-      { key: 1, value: 'b' },
-    ]),
+    () =>
+      tree.putMany([
+        { key: 1, value: 'a' },
+        { key: 1, value: 'b' },
+      ]),
     (err: unknown) =>
       err instanceof Error &&
       err.message === 'putMany: duplicate key rejected.',
@@ -62,10 +61,11 @@ void test('putMany throws on unsorted input (equal keys with replace policy)', (
   const tree = numTree({ duplicateKeys: 'replace' });
 
   assert.throws(
-    () => tree.putMany([
-      { key: 1, value: 'a' },
-      { key: 1, value: 'b' },
-    ]),
+    () =>
+      tree.putMany([
+        { key: 1, value: 'a' },
+        { key: 1, value: 'b' },
+      ]),
     (err: unknown) =>
       err instanceof Error &&
       err.message === 'putMany: equal keys not allowed in strict mode.',
@@ -80,11 +80,12 @@ void test('putMany throws on unsorted input (equal keys with replace policy)', (
 void test('putMany sort-order violation gives "entries not in ascending order" message', (): void => {
   const tree = numTree();
   assert.throws(
-    () => tree.putMany([
-      { key: 1, value: 'a' },
-      { key: 2, value: 'b' },
-      { key: 1, value: 'c' },
-    ]),
+    () =>
+      tree.putMany([
+        { key: 1, value: 'a' },
+        { key: 2, value: 'b' },
+        { key: 1, value: 'c' },
+      ]),
     (err: unknown) =>
       err instanceof Error &&
       err.message === 'putMany: entries not in ascending order.',
@@ -94,10 +95,11 @@ void test('putMany sort-order violation gives "entries not in ascending order" m
 void test('putMany duplicate-key rejection gives "duplicate key rejected" message', (): void => {
   const tree = numTree({ duplicateKeys: 'reject' });
   assert.throws(
-    () => tree.putMany([
-      { key: 1, value: 'a' },
-      { key: 1, value: 'b' },
-    ]),
+    () =>
+      tree.putMany([
+        { key: 1, value: 'a' },
+        { key: 1, value: 'b' },
+      ]),
     (err: unknown) =>
       err instanceof Error &&
       err.message === 'putMany: duplicate key rejected.',
@@ -107,10 +109,11 @@ void test('putMany duplicate-key rejection gives "duplicate key rejected" messag
 void test('putMany equal-keys with replace policy gives "equal keys not allowed in strict mode" message', (): void => {
   const tree = numTree({ duplicateKeys: 'replace' });
   assert.throws(
-    () => tree.putMany([
-      { key: 5, value: 'x' },
-      { key: 5, value: 'y' },
-    ]),
+    () =>
+      tree.putMany([
+        { key: 5, value: 'x' },
+        { key: 5, value: 'y' },
+      ]),
     (err: unknown) =>
       err instanceof Error &&
       err.message === 'putMany: equal keys not allowed in strict mode.',
@@ -164,11 +167,12 @@ void test('putMany with reject policy throws on existing key', (): void => {
   tree.put(3, 'old3');
 
   assert.throws(
-    () => tree.putMany([
-      { key: 1, value: 'a' },
-      { key: 2, value: 'b' },
-      { key: 3, value: 'c' },
-    ]),
+    () =>
+      tree.putMany([
+        { key: 1, value: 'a' },
+        { key: 2, value: 'b' },
+        { key: 3, value: 'c' },
+      ]),
     (err: unknown) => err instanceof Error && err.message.includes('Duplicate'),
   );
 });
@@ -240,8 +244,16 @@ void test('putMany populates entryKeys map when enableEntryIdLookup is true', ()
     { key: 200, value: 'b' },
   ]);
 
-  assert.deepEqual(tree.peekById(ids[0]), { entryId: ids[0], key: 100, value: 'a' });
-  assert.deepEqual(tree.peekById(ids[1]), { entryId: ids[1], key: 200, value: 'b' });
+  assert.deepEqual(tree.peekById(ids[0]), {
+    entryId: ids[0],
+    key: 100,
+    value: 'a',
+  });
+  assert.deepEqual(tree.peekById(ids[1]), {
+    entryId: ids[1],
+    key: 200,
+    value: 'b',
+  });
   tree.assertInvariants();
 });
 
@@ -254,10 +266,11 @@ void test('tree is valid and usable after putMany rejects unsorted input', (): v
   tree.put(10, 'existing');
 
   assert.throws(
-    () => tree.putMany([
-      { key: 5, value: 'a' },
-      { key: 3, value: 'b' },
-    ]),
+    () =>
+      tree.putMany([
+        { key: 5, value: 'a' },
+        { key: 3, value: 'b' },
+      ]),
     (err: unknown) =>
       err instanceof Error &&
       err.message === 'putMany: entries not in ascending order.',
@@ -278,11 +291,12 @@ void test('tree is valid after putMany rejects duplicate with reject policy', ()
   const existingId = tree.put(3, 'old3');
 
   assert.throws(
-    () => tree.putMany([
-      { key: 1, value: 'a' },
-      { key: 2, value: 'b' },
-      { key: 3, value: 'c' },
-    ]),
+    () =>
+      tree.putMany([
+        { key: 1, value: 'a' },
+        { key: 2, value: 'b' },
+        { key: 3, value: 'c' },
+      ]),
     (err: unknown) => err instanceof Error && err.message.includes('Duplicate'),
   );
 
@@ -290,7 +304,11 @@ void test('tree is valid after putMany rejects duplicate with reject policy', ()
   assert.equal(tree.get(1), 'a');
   assert.equal(tree.get(2), 'b');
 
-  assert.deepEqual(tree.peekById(existingId), { entryId: existingId, key: 3, value: 'old3' });
+  assert.deepEqual(tree.peekById(existingId), {
+    entryId: existingId,
+    key: 3,
+    value: 'old3',
+  });
   tree.assertInvariants();
 
   tree.put(99, 'ok');

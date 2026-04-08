@@ -161,7 +161,13 @@ void test('deleteRange() with both bounds exclusive', (): void => {
   tree.put(3, 'v3');
   tree.put(4, 'v4');
 
-  assert.equal(tree.deleteRange(1, 4, { lowerBound: 'exclusive', upperBound: 'exclusive' }), 2);
+  assert.equal(
+    tree.deleteRange(1, 4, {
+      lowerBound: 'exclusive',
+      upperBound: 'exclusive',
+    }),
+    2,
+  );
   assert.equal(tree.size(), 2);
   assert.equal(tree.get(1), 'v1');
   assert.equal(tree.get(4), 'v4');
@@ -172,7 +178,13 @@ void test('deleteRange() returns 0 when both bounds exclusive and start === end'
   const tree = numTree();
   tree.put(5, 'v5');
 
-  assert.equal(tree.deleteRange(5, 5, { lowerBound: 'exclusive', upperBound: 'exclusive' }), 0);
+  assert.equal(
+    tree.deleteRange(5, 5, {
+      lowerBound: 'exclusive',
+      upperBound: 'exclusive',
+    }),
+    0,
+  );
   assert.equal(tree.size(), 1);
 });
 
@@ -337,7 +349,10 @@ void test('deleteRange() with bounds matches count() before deletion', (): void 
     tree.put(i, `v${i}`);
   }
 
-  const opts = { lowerBound: 'exclusive' as const, upperBound: 'exclusive' as const };
+  const opts = {
+    lowerBound: 'exclusive' as const,
+    upperBound: 'exclusive' as const,
+  };
 
   // Build a separate tree with the same data to count first
   const tree2 = numTree();
@@ -349,4 +364,3 @@ void test('deleteRange() with bounds matches count() before deletion', (): void 
   assert.equal(tree.deleteRange(10, 40, opts), expected);
   tree.assertInvariants();
 });
-

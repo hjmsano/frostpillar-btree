@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import test, { describe } from 'node:test';
 
-import {
-  InMemoryBTree,
-  type EntryId,
-} from '../src/index.js';
+import { InMemoryBTree, type EntryId } from '../src/index.js';
 
 // ---------------------------------------------------------------------------
 // Helper
@@ -23,7 +20,10 @@ const numTree = (opts?: {
     ...opts,
   });
 
-interface KV { key: number; value: string }
+interface KV {
+  key: number;
+  value: string;
+}
 
 const seedEven = (tree: InMemoryBTree<number, string>, count: number): void => {
   for (let i = 0; i < count; i += 1) {
@@ -39,7 +39,10 @@ const oddBatch = (count: number): KV[] => {
   return batch;
 };
 
-const singleInsertAll = (tree: InMemoryBTree<number, string>, batch: KV[]): EntryId[] => {
+const singleInsertAll = (
+  tree: InMemoryBTree<number, string>,
+  batch: KV[],
+): EntryId[] => {
   const ids: EntryId[] = [];
   for (const entry of batch) {
     ids.push(tree.put(entry.key, entry.value));
@@ -181,7 +184,10 @@ void describe('putMany cursor: sparse batch triggers fallback', (): void => {
 
 void describe('putMany cursor: duplicate key handling - replace', (): void => {
   void test('replace policy — replaced keys reuse original EntryIds', (): void => {
-    const tree = numTree({ duplicateKeys: 'replace', enableEntryIdLookup: true });
+    const tree = numTree({
+      duplicateKeys: 'replace',
+      enableEntryIdLookup: true,
+    });
     tree.put(1, 'a');
     const id2 = tree.put(2, 'b');
     tree.put(3, 'c');
@@ -247,8 +253,13 @@ void describe('putMany cursor: duplicate key handling - reject', (): void => {
     tree.put(5, 'e');
 
     assert.throws(
-      () => tree.putMany([{ key: 2, value: 'b' }, { key: 3, value: 'dup' }]),
-      (err: unknown) => err instanceof Error && err.constructor.name === 'BTreeValidationError',
+      () =>
+        tree.putMany([
+          { key: 2, value: 'b' },
+          { key: 3, value: 'dup' },
+        ]),
+      (err: unknown) =>
+        err instanceof Error && err.constructor.name === 'BTreeValidationError',
     );
   });
 });

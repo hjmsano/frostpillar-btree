@@ -17,8 +17,10 @@ and safe multi-process coordination when several processes operate on the same l
 3. Preserve core B+ tree invariants: balanced leaves, occupancy rules, ordered traversal, linked-leaf correctness.
 4. Keep base `InMemoryBTree` API focused on core operations (`put`, `remove`, `popFirst`, `range`, `size`, stats, invariant assertion).
 5. Add a concurrency coordination layer for beyond-single-process safety:
+
 - `ConcurrentInMemoryBTree` for async mutation/read coordination.
 - Keep storage implementation external to this project by providing a generic store interface.
+
 6. Keep documentation set small and current, and provide bilingual user docs (EN/JA).
 
 ## Consequences

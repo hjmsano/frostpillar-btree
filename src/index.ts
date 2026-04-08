@@ -3,6 +3,7 @@ export type {
   BTreeEntry,
   BTreeJSON,
   BTreeStats,
+  DeleteRebalancePolicy,
   DuplicateKeyPolicy,
   EntryId,
   InMemoryBTreeConfig,

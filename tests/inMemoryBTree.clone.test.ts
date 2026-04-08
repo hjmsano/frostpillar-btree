@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  InMemoryBTree,
-} from '../src/index.js';
+import { InMemoryBTree } from '../src/index.js';
 
 // ---------------------------------------------------------------------------
 // Helper
@@ -144,7 +142,10 @@ void test('clone() with many entries maintains invariants', (): void => {
 });
 
 void test('clone() preserves autoScale setting', (): void => {
-  const tree = new InMemoryBTree<number, string>({ compareKeys: compareNumbers, autoScale: true });
+  const tree = new InMemoryBTree<number, string>({
+    compareKeys: compareNumbers,
+    autoScale: true,
+  });
   for (let i = 0; i < 20; i++) tree.put(i, `v${i}`);
 
   const cloned = tree.clone();
@@ -225,8 +226,14 @@ void test('clone preserves auto-scaled capacity', (): void => {
 
   const clonedJSON = cloned.toJSON();
   assert.equal(clonedJSON.config.autoScale, true);
-  assert.equal(clonedJSON.config.maxLeafEntries, originalJSON.config.maxLeafEntries);
-  assert.equal(clonedJSON.config.maxBranchChildren, originalJSON.config.maxBranchChildren);
+  assert.equal(
+    clonedJSON.config.maxLeafEntries,
+    originalJSON.config.maxLeafEntries,
+  );
+  assert.equal(
+    clonedJSON.config.maxBranchChildren,
+    originalJSON.config.maxBranchChildren,
+  );
 });
 
 void test('clone of cloned tree produces independent third copy', (): void => {

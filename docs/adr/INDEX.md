@@ -19,6 +19,9 @@
 - [0019: Leaf array optimization and audit fixes](./0019_leaf_array_optimization_and_audit_fixes.md)
 - [0020: Audit quick wins — validation, caching, and deduplication](./0020_audit_quick_wins.md)
 - [0021: Concurrent read modes and performance optimizations](./0021_concurrent_read_modes_and_performance_optimizations.md)
+- [0023: deleteRange and range performance optimizations](./0023_deleterange_and_range_performance_optimizations.md)
+- [0024: Concurrent read throughput and lazy delete rebalance](./0024_concurrent_read_throughput_and_lazy_delete_rebalance.md)
+- [0025: leafInsertAt splice elimination and bulk iteration zero-copy](./0025_leafinsert_and_bulk_iteration_optimizations.md)
 
 ## Superseded
 

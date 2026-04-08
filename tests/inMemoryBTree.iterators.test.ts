@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  InMemoryBTree,
-  type BTreeEntry,
-} from '../src/index.js';
+import { InMemoryBTree, type BTreeEntry } from '../src/index.js';
 
 // ---------------------------------------------------------------------------
 // Helper
@@ -36,11 +33,14 @@ void test('entries() returns all entries in ascending comparator order', (): voi
   const id5 = tree.put(5, 'v5');
   const id20 = tree.put(20, 'v20');
 
-  assert.deepEqual([...tree.entries()], [
-    { entryId: id5, key: 5, value: 'v5' },
-    { entryId: id10, key: 10, value: 'v10' },
-    { entryId: id20, key: 20, value: 'v20' },
-  ]);
+  assert.deepEqual(
+    [...tree.entries()],
+    [
+      { entryId: id5, key: 5, value: 'v5' },
+      { entryId: id10, key: 10, value: 'v10' },
+      { entryId: id20, key: 20, value: 'v20' },
+    ],
+  );
   tree.assertInvariants();
 });
 
@@ -50,11 +50,14 @@ void test('entries() preserves insertion order for duplicate keys', (): void => 
   const idB = tree.put(7, 'b');
   const idC = tree.put(7, 'c');
 
-  assert.deepEqual([...tree.entries()], [
-    { entryId: idA, key: 7, value: 'a' },
-    { entryId: idB, key: 7, value: 'b' },
-    { entryId: idC, key: 7, value: 'c' },
-  ]);
+  assert.deepEqual(
+    [...tree.entries()],
+    [
+      { entryId: idA, key: 7, value: 'a' },
+      { entryId: idB, key: 7, value: 'b' },
+      { entryId: idC, key: 7, value: 'c' },
+    ],
+  );
   tree.assertInvariants();
 });
 
@@ -151,10 +154,13 @@ void test('[Symbol.iterator] works with spread operator', (): void => {
   const id1 = tree.put(1, 'a');
   const id2 = tree.put(2, 'b');
 
-  assert.deepEqual([...tree], [
-    { entryId: id1, key: 1, value: 'a' },
-    { entryId: id2, key: 2, value: 'b' },
-  ]);
+  assert.deepEqual(
+    [...tree],
+    [
+      { entryId: id1, key: 1, value: 'a' },
+      { entryId: id2, key: 2, value: 'b' },
+    ],
+  );
 });
 
 void test('[Symbol.iterator] works with Array.from', (): void => {
@@ -221,7 +227,10 @@ void test('forEach respects thisArg', (): void => {
     },
   };
 
-  tree.forEach(function (this: typeof collector, entry: BTreeEntry<number, string>): void {
+  tree.forEach(function (
+    this: typeof collector,
+    entry: BTreeEntry<number, string>,
+  ): void {
     this.collect(entry);
   }, collector);
 
@@ -334,11 +343,14 @@ void test('forEach exception in callback does not corrupt tree', (): void => {
   tree.put(2, 'b');
   tree.put(3, 'c');
 
-  assert.throws(() => {
-    tree.forEach((entry: BTreeEntry<number, string>): void => {
-      if (entry.key === 2) throw new Error('stop');
-    });
-  }, { message: 'stop' });
+  assert.throws(
+    () => {
+      tree.forEach((entry: BTreeEntry<number, string>): void => {
+        if (entry.key === 2) throw new Error('stop');
+      });
+    },
+    { message: 'stop' },
+  );
 
   // Tree remains valid after callback exception
   assert.equal(tree.size(), 3);

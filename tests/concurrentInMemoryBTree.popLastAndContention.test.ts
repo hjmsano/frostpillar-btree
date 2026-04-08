@@ -3,7 +3,10 @@ import test from 'node:test';
 
 import { ConcurrentInMemoryBTree } from '../src/index.js';
 
-import { AtomicMemorySharedTreeStore, FailOnceCompareAndSetStore } from './helpers/sharedTreeStoreStubs.js';
+import {
+  AtomicMemorySharedTreeStore,
+  FailOnceCompareAndSetStore,
+} from './helpers/sharedTreeStoreStubs.js';
 
 // ---------------------------------------------------------------------------
 // popLast()
@@ -29,7 +32,11 @@ void test('popLast removes the largest entry and coordinates through store', asy
   await tree.put(10, 'ten');
   const id20 = await tree.put(20, 'twenty');
 
-  assert.deepEqual(await tree.popLast(), { entryId: id20, key: 20, value: 'twenty' });
+  assert.deepEqual(await tree.popLast(), {
+    entryId: id20,
+    key: 20,
+    value: 'twenty',
+  });
   assert.equal(await tree.size(), 2);
 });
 
@@ -47,7 +54,11 @@ void test('popLast reflects cross-instance state through shared store', async ()
   await writer.put(1, 'one');
   const id2 = await writer.put(2, 'two');
 
-  assert.deepEqual(await reader.popLast(), { entryId: id2, key: 2, value: 'two' });
+  assert.deepEqual(await reader.popLast(), {
+    entryId: id2,
+    key: 2,
+    value: 'two',
+  });
   assert.equal(await writer.size(), 1);
 });
 
@@ -109,7 +120,10 @@ void test('three writers with sequential inserts maintain consistency', async ()
   assert.equal(await treeA.size(), 30);
   const snapshot = await treeA.snapshot();
   for (let i = 1; i < snapshot.length; i += 1) {
-    assert.ok(snapshot[i - 1].key < snapshot[i].key, 'entries must be strictly ascending');
+    assert.ok(
+      snapshot[i - 1].key < snapshot[i].key,
+      'entries must be strictly ascending',
+    );
   }
   await treeA.assertInvariants();
 });
@@ -196,5 +210,9 @@ void test('updateById retries after concurrent conflict', async (): Promise<void
   const result = await retryTree.updateById(id, 'TEN');
   assert.notEqual(result, null);
   assert.equal(result!.value, 'TEN');
-  assert.deepEqual(await retryTree.peekById(id), { entryId: id, key: 10, value: 'TEN' });
+  assert.deepEqual(await retryTree.peekById(id), {
+    entryId: id,
+    key: 10,
+    value: 'TEN',
+  });
 });

@@ -4,7 +4,11 @@ import {
   DEFAULT_MAX_LEAF_ENTRIES,
 } from '../btree/types.js';
 import { BTreeConcurrencyError } from '../errors.js';
-import type { BTreeMutation, ConcurrentInMemoryBTreeConfig, ReadMode } from './types.js';
+import type {
+  BTreeMutation,
+  ConcurrentInMemoryBTreeConfig,
+  ReadMode,
+} from './types.js';
 import type { BTreeEntry, EntryId } from '../InMemoryBTree.js';
 
 const DEFAULT_MAX_RETRIES = 16;
@@ -19,8 +23,12 @@ export const computeConfigFingerprint = <TKey>(
   const tier0 = isAutoScale ? computeAutoScaleTier(0) : undefined;
   return JSON.stringify({
     duplicateKeys: config.duplicateKeys ?? 'replace',
-    maxLeafEntries: config.maxLeafEntries ?? (tier0 ? tier0.maxLeaf : DEFAULT_MAX_LEAF_ENTRIES),
-    maxBranchChildren: config.maxBranchChildren ?? (tier0 ? tier0.maxBranch : DEFAULT_MAX_BRANCH_CHILDREN),
+    maxLeafEntries:
+      config.maxLeafEntries ??
+      (tier0 ? tier0.maxLeaf : DEFAULT_MAX_LEAF_ENTRIES),
+    maxBranchChildren:
+      config.maxBranchChildren ??
+      (tier0 ? tier0.maxBranch : DEFAULT_MAX_BRANCH_CHILDREN),
     enableEntryIdLookup: config.enableEntryIdLookup === true,
     autoScale: isAutoScale,
   });
@@ -68,8 +76,15 @@ export const assertNeverMutation = (mutation: never): never => {
 
 const validatePutManyEntries = (entries: unknown[]): void => {
   for (const entry of entries) {
-    if (typeof entry !== 'object' || entry === null || !('key' in entry) || !('value' in entry)) {
-      throw new BTreeConcurrencyError('Malformed putMany mutation: each entry must have key and value.');
+    if (
+      typeof entry !== 'object' ||
+      entry === null ||
+      !('key' in entry) ||
+      !('value' in entry)
+    ) {
+      throw new BTreeConcurrencyError(
+        'Malformed putMany mutation: each entry must have key and value.',
+      );
     }
   }
 };
@@ -79,12 +94,67 @@ const validateInitMutation = (
   expectedConfigFingerprint: string | undefined,
 ): void => {
   if (typeof m.configFingerprint !== 'string') {
-    throw new BTreeConcurrencyError('Malformed init mutation: missing configFingerprint.');
+    throw new BTreeConcurrencyError(
+      'Malformed init mutation: missing configFingerprint.',
+    );
   }
-  if (expectedConfigFingerprint !== undefined && m.configFingerprint !== expectedConfigFingerprint) {
+  if (
+    expectedConfigFingerprint !== undefined &&
+    m.configFingerprint !== expectedConfigFingerprint
+  ) {
     throw new BTreeConcurrencyError(
       'Config mismatch: store peers must share identical tree config.',
     );
+  }
+};
+
+const validateMutationFields = (m: Record<string, unknown>): void => {
+  switch (m.type) {
+    case 'put':
+      if (!('key' in m) || !('value' in m)) {
+        throw new BTreeConcurrencyError(
+          'Malformed put mutation: missing key or value.',
+        );
+      }
+      break;
+    case 'remove':
+      if (!('key' in m)) {
+        throw new BTreeConcurrencyError(
+          'Malformed remove mutation: missing key.',
+        );
+      }
+      break;
+    case 'removeById':
+      if (!('entryId' in m)) {
+        throw new BTreeConcurrencyError(
+          'Malformed removeById mutation: missing entryId.',
+        );
+      }
+      break;
+    case 'updateById':
+      if (!('entryId' in m) || !('value' in m)) {
+        throw new BTreeConcurrencyError(
+          'Malformed updateById mutation: missing entryId or value.',
+        );
+      }
+      break;
+    case 'putMany':
+      if (!('entries' in m) || !Array.isArray(m.entries)) {
+        throw new BTreeConcurrencyError(
+          'Malformed putMany mutation: missing entries array.',
+        );
+      }
+      validatePutManyEntries(m.entries as unknown[]);
+      break;
+    case 'deleteRange':
+      if (!('startKey' in m) || !('endKey' in m)) {
+        throw new BTreeConcurrencyError(
+          'Malformed deleteRange mutation: missing startKey or endKey.',
+        );
+      }
+      break;
+    default:
+      break;
   }
 };
 
@@ -97,39 +167,15 @@ const validateSingleMutation = (
       validateInitMutation(m, expectedConfigFingerprint);
       break;
     case 'put':
-      if (!('key' in m) || !('value' in m)) {
-        throw new BTreeConcurrencyError('Malformed put mutation: missing key or value.');
-      }
-      break;
     case 'remove':
-      if (!('key' in m)) {
-        throw new BTreeConcurrencyError('Malformed remove mutation: missing key.');
-      }
-      break;
     case 'removeById':
-      if (!('entryId' in m)) {
-        throw new BTreeConcurrencyError('Malformed removeById mutation: missing entryId.');
-      }
-      break;
     case 'updateById':
-      if (!('entryId' in m) || !('value' in m)) {
-        throw new BTreeConcurrencyError('Malformed updateById mutation: missing entryId or value.');
-      }
+    case 'putMany':
+    case 'deleteRange':
+      validateMutationFields(m);
       break;
     case 'popFirst':
     case 'popLast':
-      break;
-    case 'putMany':
-      if (!('entries' in m) || !Array.isArray(m.entries)) {
-        throw new BTreeConcurrencyError('Malformed putMany mutation: missing entries array.');
-      }
-      validatePutManyEntries(m.entries as unknown[]);
-      break;
-    case 'deleteRange':
-      if (!('startKey' in m) || !('endKey' in m)) {
-        throw new BTreeConcurrencyError('Malformed deleteRange mutation: missing startKey or endKey.');
-      }
-      break;
     case 'clear':
       break;
     default:
@@ -145,7 +191,9 @@ export const validateMutationBatch = <TKey, TValue>(
 ): void => {
   for (const mutation of mutations) {
     if (typeof mutation !== 'object' || mutation === null) {
-      throw new BTreeConcurrencyError('Malformed mutation: expected an object.');
+      throw new BTreeConcurrencyError(
+        'Malformed mutation: expected an object.',
+      );
     }
     validateSingleMutation(
       mutation as Record<string, unknown>,
@@ -161,7 +209,7 @@ export const normalizeMaxRetries = (value: number | undefined): number => {
 
   if (!Number.isInteger(value) || value < 1 || value > MAX_RETRIES_LIMIT) {
     throw new BTreeConcurrencyError(
-      `maxRetries: integer 1–${MAX_RETRIES_LIMIT} required.`
+      `maxRetries: integer 1–${MAX_RETRIES_LIMIT} required.`,
     );
   }
 
@@ -176,12 +224,12 @@ export const normalizeMaxSyncMutationsPerBatch = (
   }
 
   if (
-    !Number.isInteger(value)
-    || value < 1
-    || value > MAX_SYNC_MUTATIONS_PER_BATCH_LIMIT
+    !Number.isInteger(value) ||
+    value < 1 ||
+    value > MAX_SYNC_MUTATIONS_PER_BATCH_LIMIT
   ) {
     throw new BTreeConcurrencyError(
-      `maxSyncMutationsPerBatch: integer 1–${MAX_SYNC_MUTATIONS_PER_BATCH_LIMIT} required.`
+      `maxSyncMutationsPerBatch: integer 1–${MAX_SYNC_MUTATIONS_PER_BATCH_LIMIT} required.`,
     );
   }
 
@@ -193,9 +241,7 @@ export const normalizeReadMode = (value: ReadMode | undefined): ReadMode => {
     return 'strong';
   }
   if (value !== 'strong' && value !== 'local') {
-    throw new BTreeConcurrencyError(
-      `readMode: must be 'strong' or 'local'.`,
-    );
+    throw new BTreeConcurrencyError(`readMode: must be 'strong' or 'local'.`);
   }
   return value;
 };

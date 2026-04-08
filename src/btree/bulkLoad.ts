@@ -12,7 +12,11 @@ import {
 } from './types.js';
 
 /** Compute chunk sizes that satisfy min-occupancy, single-pass. Returns end-indices. */
-const computeChunkBoundaries = (total: number, max: number, min: number): number[] => {
+const computeChunkBoundaries = (
+  total: number,
+  max: number,
+  min: number,
+): number[] => {
   const boundaries: number[] = [];
   let offset = 0;
   while (offset < total) {
@@ -37,7 +41,11 @@ const buildLeaves = <TKey, TValue>(
   ids: EntryId[],
   baseSequence: number,
 ): LeafNode<TKey, TValue>[] => {
-  const boundaries = computeChunkBoundaries(entries.length, state.maxLeafEntries, state.minLeafEntries);
+  const boundaries = computeChunkBoundaries(
+    entries.length,
+    state.maxLeafEntries,
+    state.minLeafEntries,
+  );
   const leaves = new Array<LeafNode<TKey, TValue>>(boundaries.length);
   let chunkStart = 0;
   for (let c = 0; c < boundaries.length; c += 1) {
@@ -45,7 +53,11 @@ const buildLeaves = <TKey, TValue>(
     const chunk = new Array<LeafEntry<TKey, TValue>>(chunkEnd - chunkStart);
     for (let i = chunkStart; i < chunkEnd; i += 1) {
       const seq = (baseSequence + i) as EntryId;
-      chunk[i - chunkStart] = { key: entries[i].key, entryId: seq, value: entries[i].value };
+      chunk[i - chunkStart] = {
+        key: entries[i].key,
+        entryId: seq,
+        value: entries[i].value,
+      };
       ids[i] = seq;
       if (state.entryKeys !== null) {
         state.entryKeys.set(seq, entries[i].key);
@@ -88,11 +100,18 @@ export const bulkLoadEntries = <TKey, TValue>(
   } else {
     let currentLevel: BTreeNode<TKey, TValue>[] = leaves;
     while (currentLevel.length > 1) {
-      const bounds = computeChunkBoundaries(currentLevel.length, state.maxBranchChildren, state.minBranchChildren);
+      const bounds = computeChunkBoundaries(
+        currentLevel.length,
+        state.maxBranchChildren,
+        state.minBranchChildren,
+      );
       const nextLevel = new Array<BranchNode<TKey, TValue>>(bounds.length);
       let start = 0;
       for (let b = 0; b < bounds.length; b += 1) {
-        nextLevel[b] = createBranchNode(currentLevel.slice(start, bounds[b]), null);
+        nextLevel[b] = createBranchNode(
+          currentLevel.slice(start, bounds[b]),
+          null,
+        );
         start = bounds[b];
       }
       currentLevel = nextLevel;

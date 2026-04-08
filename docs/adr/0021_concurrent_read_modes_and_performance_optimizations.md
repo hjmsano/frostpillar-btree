@@ -64,7 +64,7 @@ Replace `collectEntryPairs` + `putMany` with a direct leaf-chain traversal that 
 - `ConcurrentInMemoryBTreeConfig` gains an optional `readMode` field. Default (`strong`) preserves backward compatibility.
 - `local` mode trades freshness for throughput. Callers must call `sync()` explicitly to catch up.
 - The store interface (`SharedTreeStore`) is unchanged.
-- `range()` on large ranges eliminates ~(N - 2 boundary leaves) * leafSize unnecessary comparisons.
+- `range()` on large ranges eliminates ~(N - 2 boundary leaves) \* leafSize unnecessary comparisons.
 - `bulkLoad` peak memory is halved for large loads.
 - Pre-allocations reduce GC pressure from array resizing.
 - `clone()` eliminates N intermediate object allocations.

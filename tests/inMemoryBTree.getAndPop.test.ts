@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  InMemoryBTree,
-} from '../src/index.js';
+import { InMemoryBTree } from '../src/index.js';
 
 // ---------------------------------------------------------------------------
 // get()

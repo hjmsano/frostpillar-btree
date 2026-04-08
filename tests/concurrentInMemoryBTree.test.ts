@@ -7,14 +7,16 @@ import {
 } from '../src/index.js';
 
 import {
-  AlwaysConflictStore,
   AtomicMemorySharedTreeStore,
   DelayFirstReadStore,
   DelayFirstSuccessfulAppendStore,
   FailOnceCompareAndSetStore,
   JumpVersionStore,
-  NonReplayingAppendStore,
 } from './helpers/sharedTreeStoreStubs.js';
+import {
+  AlwaysConflictStore,
+  NonReplayingAppendStore,
+} from './helpers/specializedStoreStubs.js';
 
 void test('concurrent coordinators avoid lost updates through shared CAS store', async (): Promise<void> => {
   const store = new AtomicMemorySharedTreeStore<number, string>();
@@ -28,7 +30,10 @@ void test('concurrent coordinators avoid lost updates through shared CAS store',
   const first = createTree();
   const second = createTree();
 
-  const [id10, id20] = await Promise.all([first.put(10, 'ten'), second.put(20, 'twenty')]);
+  const [id10, id20] = await Promise.all([
+    first.put(10, 'ten'),
+    second.put(20, 'twenty'),
+  ]);
 
   await first.sync();
   assert.deepEqual(await first.range(0, 30), [
@@ -48,7 +53,9 @@ void test('retries and succeeds when first CAS attempt conflicts', async (): Pro
   });
 
   const id7 = await tree.put(7, 'value');
-  assert.deepEqual(await tree.range(7, 7), [{ entryId: id7, key: 7, value: 'value' }]);
+  assert.deepEqual(await tree.range(7, 7), [
+    { entryId: id7, key: 7, value: 'value' },
+  ]);
 });
 
 void test('fails with typed error after max retry exhaustion', async (): Promise<void> => {
@@ -81,10 +88,9 @@ void test('tree recovers and accepts operations after retry exhaustion error', a
     maxRetries: 1,
   });
 
-  await assert.rejects(
-    async (): Promise<void> => { await failingTree.put(99, 'fail'); },
-    BTreeConcurrencyError,
-  );
+  await assert.rejects(async (): Promise<void> => {
+    await failingTree.put(99, 'fail');
+  }, BTreeConcurrencyError);
 
   // Now create a fresh tree on the working store — it should operate normally
   const recoveryTree = new ConcurrentInMemoryBTree<number, string>({
@@ -100,7 +106,9 @@ void test('tree recovers and accepts operations after retry exhaustion error', a
 void test('serializes overlapping sync calls to avoid duplicate mutation replay', async (): Promise<void> => {
   const base = new AtomicMemorySharedTreeStore<number, string>();
   const store = new DelayFirstReadStore(base);
-  const seeded = await store.append(0n, [{ type: 'put', key: 1, value: 'one' }]);
+  const seeded = await store.append(0n, [
+    { type: 'put', key: 1, value: 'one' },
+  ]);
   assert.equal(seeded.applied, true);
 
   const tree = new ConcurrentInMemoryBTree<number, string>({
@@ -158,7 +166,11 @@ void test('peekFirst returns the smallest entry without removing it', async (): 
   const id5 = await tree.put(5, 'five');
   await tree.put(10, 'ten');
 
-  assert.deepEqual(await tree.peekFirst(), { entryId: id5, key: 5, value: 'five' });
+  assert.deepEqual(await tree.peekFirst(), {
+    entryId: id5,
+    key: 5,
+    value: 'five',
+  });
   assert.equal(await tree.size(), 3);
 });
 
@@ -174,7 +186,11 @@ void test('peekFirst syncs from store before returning', async (): Promise<void>
   });
 
   const id3 = await writer.put(3, 'three');
-  assert.deepEqual(await reader.peekFirst(), { entryId: id3, key: 3, value: 'three' });
+  assert.deepEqual(await reader.peekFirst(), {
+    entryId: id3,
+    key: 3,
+    value: 'three',
+  });
 });
 
 void test('peekById returns null for unknown entryId', async (): Promise<void> => {
@@ -201,7 +217,11 @@ void test('peekById returns the correct entry without removing it', async (): Pr
   const idTwenty = await tree.put(20, 'twenty');
   await tree.put(30, 'thirty');
 
-  assert.deepEqual(await tree.peekById(idTwenty), { entryId: idTwenty, key: 20, value: 'twenty' });
+  assert.deepEqual(await tree.peekById(idTwenty), {
+    entryId: idTwenty,
+    key: 20,
+    value: 'twenty',
+  });
   assert.equal(await tree.size(), 3);
 });
 
@@ -219,7 +239,11 @@ void test('peekById syncs from store before returning and reflects remote remova
   });
 
   const id = await owner.put(7, 'seven');
-  assert.deepEqual(await owner.peekById(id), { entryId: id, key: 7, value: 'seven' });
+  assert.deepEqual(await owner.peekById(id), {
+    entryId: id,
+    key: 7,
+    value: 'seven',
+  });
 
   await remote.remove(7);
 
@@ -240,7 +264,11 @@ void test('removeById works across synchronized instances sharing one store', as
   });
 
   const id = await writer.put(11, 'eleven');
-  assert.deepEqual(await reader.removeById(id), { entryId: id, key: 11, value: 'eleven' });
+  assert.deepEqual(await reader.removeById(id), {
+    entryId: id,
+    key: 11,
+    value: 'eleven',
+  });
   assert.equal(await writer.peekById(id), null);
 });
 
@@ -258,8 +286,9 @@ void test('updateById works across synchronized instances sharing one store', as
   });
 
   const id = await writer.put(12, 'twelve');
-  assert.deepEqual(await reader.updateById(id, 'TWELVE'), { entryId: id, key: 12, value: 'TWELVE' });
-  assert.deepEqual(await writer.peekById(id), { entryId: id, key: 12, value: 'TWELVE' });
+  const expected = { entryId: id, key: 12, value: 'TWELVE' };
+  assert.deepEqual(await reader.updateById(id, 'TWELVE'), expected);
+  assert.deepEqual(await writer.peekById(id), expected);
 });
 
 void test('uses committed store version from append result when versions jump', async (): Promise<void> => {
@@ -270,7 +299,9 @@ void test('uses committed store version from append result when versions jump', 
   });
 
   const id1 = await tree.put(1, 'one');
-  assert.deepEqual(await tree.range(1, 1), [{ entryId: id1, key: 1, value: 'one' }]);
+  assert.deepEqual(await tree.range(1, 1), [
+    { entryId: id1, key: 1, value: 'one' },
+  ]);
 });
 
 void test('applies successful appends locally even when store does not replay payloads', async (): Promise<void> => {
@@ -281,10 +312,17 @@ void test('applies successful appends locally even when store does not replay pa
   });
 
   const id = await tree.put(10, 'ten');
-  assert.deepEqual(await tree.peekById(id), { entryId: id, key: 10, value: 'ten' });
-  assert.deepEqual(await tree.updateById(id, 'TEN'), { entryId: id, key: 10, value: 'TEN' });
-  assert.deepEqual(await tree.peekById(id), { entryId: id, key: 10, value: 'TEN' });
-  assert.deepEqual(await tree.removeById(id), { entryId: id, key: 10, value: 'TEN' });
+  const e = (
+    v: string,
+  ): { entryId: typeof id; key: number; value: string } => ({
+    entryId: id,
+    key: 10,
+    value: v,
+  });
+  assert.deepEqual(await tree.peekById(id), e('ten'));
+  assert.deepEqual(await tree.updateById(id, 'TEN'), e('TEN'));
+  assert.deepEqual(await tree.peekById(id), e('TEN'));
+  assert.deepEqual(await tree.removeById(id), e('TEN'));
   assert.equal(await tree.peekById(id), null);
 });
 

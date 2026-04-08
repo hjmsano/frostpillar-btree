@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  InMemoryBTree,
-} from '../src/index.js';
+import { InMemoryBTree } from '../src/index.js';
 
 void test('range query returns sorted inclusive entries and handles reversed bounds', (): void => {
   const tree = new InMemoryBTree<number, string>({
@@ -154,7 +152,11 @@ void test('split and merge paths preserve invariants for small capacities', (): 
 
   for (let index = 0; index < 30; index += 1) {
     const id = ids.get(index)!;
-    assert.deepEqual(tree.remove(index), { entryId: id, key: index, value: index * 10 });
+    assert.deepEqual(tree.remove(index), {
+      entryId: id,
+      key: index,
+      value: index * 10,
+    });
     tree.assertInvariants();
   }
 
@@ -202,7 +204,11 @@ void test('removeById and updateById target exact duplicate-key entries', (): vo
   const idA = tree.put(10, 'a');
   const idB = tree.put(10, 'b');
 
-  assert.deepEqual(tree.updateById(idB, 'B'), { entryId: idB, key: 10, value: 'B' });
+  assert.deepEqual(tree.updateById(idB, 'B'), {
+    entryId: idB,
+    key: 10,
+    value: 'B',
+  });
   assert.deepEqual(tree.peekById(idA), { entryId: idA, key: 10, value: 'a' });
   assert.deepEqual(tree.peekById(idB), { entryId: idB, key: 10, value: 'B' });
   assert.deepEqual(tree.removeById(idA), { entryId: idA, key: 10, value: 'a' });
@@ -216,8 +222,16 @@ void test('updateById returns the post-update entry for repeated updates', (): v
   });
 
   const id = tree.put(1, 'one');
-  assert.deepEqual(tree.updateById(id, 'ONE'), { entryId: id, key: 1, value: 'ONE' });
-  assert.deepEqual(tree.updateById(id, 'UNO'), { entryId: id, key: 1, value: 'UNO' });
+  assert.deepEqual(tree.updateById(id, 'ONE'), {
+    entryId: id,
+    key: 1,
+    value: 'ONE',
+  });
+  assert.deepEqual(tree.updateById(id, 'UNO'), {
+    entryId: id,
+    key: 1,
+    value: 'UNO',
+  });
   assert.deepEqual(tree.peekById(id), { entryId: id, key: 1, value: 'UNO' });
   assert.deepEqual(tree.snapshot(), [{ entryId: id, key: 1, value: 'UNO' }]);
 });
@@ -256,7 +270,10 @@ void test('popFirst exactly at 50% offset threshold triggers compaction without 
 
   // Verify remaining entries are correct
   const snap = tree.snapshot();
-  assert.deepEqual(snap.map((e) => e.key), [4, 5, 6, 7]);
+  assert.deepEqual(
+    snap.map((e) => e.key),
+    [4, 5, 6, 7],
+  );
 
   // Now insert and verify no corruption
   tree.put(10, '10');
@@ -294,7 +311,10 @@ void test('mixed popFirst and insert across leaf boundaries preserves all entrie
   // Verify range query still works correctly
   const snap = tree.snapshot();
   for (let i = 1; i < snap.length; i += 1) {
-    assert.ok(snap[i - 1].key < snap[i].key, `key order violation: ${snap[i - 1].key} >= ${snap[i].key}`);
+    assert.ok(
+      snap[i - 1].key < snap[i].key,
+      `key order violation: ${snap[i - 1].key} >= ${snap[i].key}`,
+    );
   }
   // Verify entries() matches snapshot()
   assert.deepEqual([...tree.entries()], snap);

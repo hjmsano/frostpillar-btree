@@ -6,6 +6,7 @@ import {
 import { isEmptyRange } from './rangeQuery.js';
 import type { RangeBounds } from './types.js';
 import {
+  leafRebalanceThreshold,
   rebalanceAfterLeafRemoval,
   updateMinKeyInAncestors,
 } from './rebalance.js';
@@ -38,22 +39,26 @@ const navigateToStart = <TKey, TValue>(
   return { leaf, idx };
 };
 
+/** Binary search to find the end position within a leaf for range deletion. */
 const findRemoveEnd = <TKey, TValue>(
   state: BTreeState<TKey, TValue>,
   leaf: LeafNode<TKey, TValue>,
-  idx: number,
   endKey: TKey,
   upperExclusive: boolean,
 ): number => {
   const count = leafEntryCount(leaf);
-  let removeEnd = idx;
-  while (removeEnd < count) {
-    const e = leafEntryAt(leaf, removeEnd);
-    const cmpEnd = state.compareKeys(e.key, endKey);
-    if (upperExclusive ? cmpEnd >= 0 : cmpEnd > 0) break;
-    removeEnd += 1;
+  // Whole-leaf fast-path: if the last entry is within range, all entries from idx are in range
+  const lastEntry = leafEntryAt(leaf, count - 1);
+  const cmpLast = state.compareKeys(lastEntry.key, endKey);
+  if (upperExclusive ? cmpLast < 0 : cmpLast <= 0) {
+    return count;
   }
-  return removeEnd;
+  // Boundary leaf: use binary search to find the end position
+  const endSeq = upperExclusive ? 0 : Number.MAX_SAFE_INTEGER;
+  const endBound = upperExclusive
+    ? lowerBoundInLeaf(state, leaf, endKey, endSeq)
+    : upperBoundInLeaf(state, leaf, endKey, endSeq);
+  return endBound < count ? endBound : count;
 };
 
 const spliceLeafAndRebalance = <TKey, TValue>(
@@ -80,14 +85,27 @@ const spliceLeafAndRebalance = <TKey, TValue>(
   // Each iteration either borrows one entry (O(1)) or merges (O(entries), then breaks).
   // Safety guard prevents infinite loops from unforeseen bugs; normal convergence
   // takes at most minLeafEntries + 2 iterations.
+  const rebalThreshold = leafRebalanceThreshold(state);
   let safetyGuard = state.minLeafEntries + 4;
-  while (safetyGuard > 0 && leaf !== state.root && leafEntryCount(leaf) < state.minLeafEntries) {
+  while (
+    safetyGuard > 0 &&
+    leaf !== state.root &&
+    leafEntryCount(leaf) < rebalThreshold
+  ) {
     rebalanceAfterLeafRemoval(state, leaf);
-    if (leaf.parent !== null && leaf.parent.children[leaf.indexInParent] !== leaf) break;
+    if (
+      leaf.parent !== null &&
+      leaf.parent.children[leaf.indexInParent] !== leaf
+    )
+      break;
     safetyGuard -= 1;
   }
-  if (leafEmptied && leafEntryCount(leaf) > 0 && leaf.parent !== null
-      && leaf.parent.children[leaf.indexInParent] === leaf) {
+  if (
+    leafEmptied &&
+    leafEntryCount(leaf) > 0 &&
+    leaf.parent !== null &&
+    leaf.parent.children[leaf.indexInParent] === leaf
+  ) {
     updateMinKeyInAncestors(leaf);
   }
   return countAfterSplice;
@@ -128,11 +146,16 @@ export const deleteRangeEntries = <TKey, TValue>(
     if (idx >= leafEntryCount(leaf)) break;
 
     const count = leafEntryCount(leaf);
-    const removeEnd = findRemoveEnd(state, leaf, idx, endKey, upperExclusive);
+    const removeEnd = findRemoveEnd(state, leaf, endKey, upperExclusive);
     const removeCount = removeEnd - idx;
     if (removeCount === 0) break;
 
-    const countAfterSplice = spliceLeafAndRebalance(state, leaf, idx, removeCount);
+    const countAfterSplice = spliceLeafAndRebalance(
+      state,
+      leaf,
+      idx,
+      removeCount,
+    );
     deleted += removeCount;
 
     if (removeEnd < count) break;

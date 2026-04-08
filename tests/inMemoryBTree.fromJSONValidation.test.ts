@@ -34,24 +34,43 @@ const numTree = (opts?: {
 void test('fromJSON() throws on unsupported or missing version', (): void => {
   const json = numTree().toJSON();
   (json as { version: number }).version = 999;
-  assert.throws(() => InMemoryBTree.fromJSON(json, compareNumbers),
-    (err: Error) => err.constructor.name === 'BTreeValidationError');
   assert.throws(
-    () => InMemoryBTree.fromJSON({} as BTreeJSON<number, string>, compareNumbers),
-    (err: Error) => err.constructor.name === 'BTreeValidationError');
+    () => InMemoryBTree.fromJSON(json, compareNumbers),
+    (err: Error) => err.constructor.name === 'BTreeValidationError',
+  );
+  assert.throws(
+    () =>
+      InMemoryBTree.fromJSON({} as BTreeJSON<number, string>, compareNumbers),
+    (err: Error) => err.constructor.name === 'BTreeValidationError',
+  );
 });
 
 void test('fromJSON() throws BTreeValidationError when config is missing', (): void => {
   assert.throws(
-    () => InMemoryBTree.fromJSON({ version: 1 } as BTreeJSON<number, string>, compareNumbers),
-    (err: Error) => err.constructor.name === 'BTreeValidationError' && err.message.includes('config'),
+    () =>
+      InMemoryBTree.fromJSON(
+        { version: 1 } as BTreeJSON<number, string>,
+        compareNumbers,
+      ),
+    (err: Error) =>
+      err.constructor.name === 'BTreeValidationError' &&
+      err.message.includes('config'),
   );
 });
 
 void test('fromJSON() throws BTreeValidationError when config is not an object', (): void => {
   assert.throws(
-    () => InMemoryBTree.fromJSON({ version: 1, config: 42, entries: [] } as unknown as BTreeJSON<number, string>, compareNumbers),
-    (err: Error) => err.constructor.name === 'BTreeValidationError' && err.message.includes('config'),
+    () =>
+      InMemoryBTree.fromJSON(
+        { version: 1, config: 42, entries: [] } as unknown as BTreeJSON<
+          number,
+          string
+        >,
+        compareNumbers,
+      ),
+    (err: Error) =>
+      err.constructor.name === 'BTreeValidationError' &&
+      err.message.includes('config'),
   );
 });
 
@@ -60,7 +79,9 @@ void test('fromJSON() throws BTreeValidationError when entries is missing', (): 
   delete (json as unknown as Record<string, unknown>).entries;
   assert.throws(
     () => InMemoryBTree.fromJSON(json, compareNumbers),
-    (err: Error) => err.constructor.name === 'BTreeValidationError' && err.message.includes('entries'),
+    (err: Error) =>
+      err.constructor.name === 'BTreeValidationError' &&
+      err.message.includes('entries'),
   );
 });
 
@@ -69,7 +90,9 @@ void test('fromJSON() throws BTreeValidationError when entries is not an array',
   (json as unknown as Record<string, unknown>).entries = 'not-an-array';
   assert.throws(
     () => InMemoryBTree.fromJSON(json, compareNumbers),
-    (err: Error) => err.constructor.name === 'BTreeValidationError' && err.message.includes('entries'),
+    (err: Error) =>
+      err.constructor.name === 'BTreeValidationError' &&
+      err.message.includes('entries'),
   );
 });
 
@@ -78,7 +101,9 @@ void test('fromJSON() throws BTreeValidationError when config.duplicateKeys is m
   delete (json.config as Record<string, unknown>).duplicateKeys;
   assert.throws(
     () => InMemoryBTree.fromJSON(json, compareNumbers),
-    (err: Error) => err.constructor.name === 'BTreeValidationError' && err.message.includes('duplicateKeys'),
+    (err: Error) =>
+      err.constructor.name === 'BTreeValidationError' &&
+      err.message.includes('duplicateKeys'),
   );
 });
 
@@ -87,7 +112,9 @@ void test('fromJSON() throws BTreeValidationError when config.duplicateKeys is i
   (json.config as Record<string, unknown>).duplicateKeys = 'invalid';
   assert.throws(
     () => InMemoryBTree.fromJSON(json, compareNumbers),
-    (err: Error) => err.constructor.name === 'BTreeValidationError' && err.message.includes('duplicateKeys'),
+    (err: Error) =>
+      err.constructor.name === 'BTreeValidationError' &&
+      err.message.includes('duplicateKeys'),
   );
 });
 
@@ -96,7 +123,9 @@ void test('fromJSON() throws BTreeValidationError when entry is not a tuple', ()
   (json as unknown as { entries: unknown[] }).entries = [42];
   assert.throws(
     () => InMemoryBTree.fromJSON(json, compareNumbers),
-    (err: Error) => err.constructor.name === 'BTreeValidationError' && err.message.includes('entries[0]'),
+    (err: Error) =>
+      err.constructor.name === 'BTreeValidationError' &&
+      err.message.includes('entries[0]'),
   );
 });
 
@@ -105,7 +134,9 @@ void test('fromJSON() throws BTreeValidationError when entry tuple has wrong len
   (json as unknown as { entries: unknown[] }).entries = [[1]];
   assert.throws(
     () => InMemoryBTree.fromJSON(json, compareNumbers),
-    (err: Error) => err.constructor.name === 'BTreeValidationError' && err.message.includes('entries[0]'),
+    (err: Error) =>
+      err.constructor.name === 'BTreeValidationError' &&
+      err.message.includes('entries[0]'),
   );
 });
 
@@ -114,12 +145,17 @@ void test('fromJSON() throws BTreeValidationError for malformed entry at later i
   (json as unknown as { entries: unknown[] }).entries = [[1, 'a'], 'bad'];
   assert.throws(
     () => InMemoryBTree.fromJSON(json, compareNumbers),
-    (err: Error) => err.constructor.name === 'BTreeValidationError' && err.message.includes('entries[1]'),
+    (err: Error) =>
+      err.constructor.name === 'BTreeValidationError' &&
+      err.message.includes('entries[1]'),
   );
 });
 
 void test('fromJSON() throws BTreeValidationError when entries array is too large', (): void => {
-  const fakeEntries = Object.assign([], { length: 1_000_001 }) as [number, string][];
+  const fakeEntries = Object.assign([], { length: 1_000_001 }) as [
+    number,
+    string,
+  ][];
   const json = {
     version: 1,
     config: {
@@ -133,7 +169,9 @@ void test('fromJSON() throws BTreeValidationError when entries array is too larg
   };
   assert.throws(
     () => InMemoryBTree.fromJSON(json, (a: number, b: number) => a - b),
-    (error: Error) => error instanceof BTreeValidationError && error.message.includes('exceeds maximum'),
+    (error: Error) =>
+      error instanceof BTreeValidationError &&
+      error.message.includes('exceeds maximum'),
   );
 });
 
@@ -146,7 +184,9 @@ void test('fromJSON() throws BTreeValidationError when enableEntryIdLookup is no
   (json.config as Record<string, unknown>).enableEntryIdLookup = 'yes';
   assert.throws(
     () => InMemoryBTree.fromJSON(json, compareNumbers),
-    (err: Error) => err instanceof BTreeValidationError && err.message.includes('enableEntryIdLookup'),
+    (err: Error) =>
+      err instanceof BTreeValidationError &&
+      err.message.includes('enableEntryIdLookup'),
   );
 });
 
@@ -155,7 +195,8 @@ void test('fromJSON() throws BTreeValidationError when autoScale is not a boolea
   (json.config as Record<string, unknown>).autoScale = 1;
   assert.throws(
     () => InMemoryBTree.fromJSON(json, compareNumbers),
-    (err: Error) => err instanceof BTreeValidationError && err.message.includes('autoScale'),
+    (err: Error) =>
+      err instanceof BTreeValidationError && err.message.includes('autoScale'),
   );
 });
 
@@ -164,7 +205,9 @@ void test('fromJSON() throws BTreeValidationError when maxLeafEntries is not a n
   (json.config as Record<string, unknown>).maxLeafEntries = '64';
   assert.throws(
     () => InMemoryBTree.fromJSON(json, compareNumbers),
-    (err: Error) => err instanceof BTreeValidationError && err.message.includes('maxLeafEntries'),
+    (err: Error) =>
+      err instanceof BTreeValidationError &&
+      err.message.includes('maxLeafEntries'),
   );
 });
 
@@ -173,7 +216,9 @@ void test('fromJSON() throws BTreeValidationError when maxBranchChildren is not 
   (json.config as Record<string, unknown>).maxBranchChildren = null;
   assert.throws(
     () => InMemoryBTree.fromJSON(json, compareNumbers),
-    (err: Error) => err instanceof BTreeValidationError && err.message.includes('maxBranchChildren'),
+    (err: Error) =>
+      err instanceof BTreeValidationError &&
+      err.message.includes('maxBranchChildren'),
   );
 });
 
@@ -182,7 +227,9 @@ void test('fromJSON() throws BTreeValidationError when maxLeafEntries is below m
   json.config.maxLeafEntries = 2;
   assert.throws(
     () => InMemoryBTree.fromJSON(json, compareNumbers),
-    (err: Error) => err instanceof BTreeValidationError && err.message.includes('maxLeafEntries'),
+    (err: Error) =>
+      err instanceof BTreeValidationError &&
+      err.message.includes('maxLeafEntries'),
   );
 });
 
@@ -191,7 +238,9 @@ void test('fromJSON() throws BTreeValidationError when maxLeafEntries is a float
   json.config.maxLeafEntries = 3.5;
   assert.throws(
     () => InMemoryBTree.fromJSON(json, compareNumbers),
-    (err: Error) => err instanceof BTreeValidationError && err.message.includes('maxLeafEntries'),
+    (err: Error) =>
+      err instanceof BTreeValidationError &&
+      err.message.includes('maxLeafEntries'),
   );
 });
 
@@ -200,7 +249,9 @@ void test('fromJSON() throws BTreeValidationError when maxBranchChildren exceeds
   json.config.maxBranchChildren = 99999;
   assert.throws(
     () => InMemoryBTree.fromJSON(json, compareNumbers),
-    (err: Error) => err instanceof BTreeValidationError && err.message.includes('maxBranchChildren'),
+    (err: Error) =>
+      err instanceof BTreeValidationError &&
+      err.message.includes('maxBranchChildren'),
   );
 });
 
@@ -210,27 +261,39 @@ void test('fromJSON() throws BTreeValidationError when maxBranchChildren exceeds
 
 void test('fromJSON() reports unsorted entries distinctly from duplicate keys (strict mode)', (): void => {
   const json = numTree().toJSON();
-  json.entries = [[3, 'c'], [1, 'a']]; // unsorted, not duplicates
+  json.entries = [
+    [3, 'c'],
+    [1, 'a'],
+  ]; // unsorted, not duplicates
   assert.throws(
     () => InMemoryBTree.fromJSON(json, compareNumbers),
-    (err: Error) => err instanceof BTreeValidationError && err.message.includes('not sorted'),
+    (err: Error) =>
+      err instanceof BTreeValidationError && err.message.includes('not sorted'),
   );
 });
 
 void test('fromJSON() reports duplicate keys distinctly from unsorted entries (strict mode)', (): void => {
   const json = numTree().toJSON();
-  json.entries = [[1, 'a'], [1, 'b']]; // duplicate, but sorted
+  json.entries = [
+    [1, 'a'],
+    [1, 'b'],
+  ]; // duplicate, but sorted
   assert.throws(
     () => InMemoryBTree.fromJSON(json, compareNumbers),
-    (err: Error) => err instanceof BTreeValidationError && err.message.includes('duplicate'),
+    (err: Error) =>
+      err instanceof BTreeValidationError && err.message.includes('duplicate'),
   );
 });
 
 void test('fromJSON() reports unsorted entries in allow-duplicates mode', (): void => {
   const json = numTree({ duplicateKeys: 'allow' }).toJSON();
-  json.entries = [[3, 'c'], [1, 'a']]; // unsorted
+  json.entries = [
+    [3, 'c'],
+    [1, 'a'],
+  ]; // unsorted
   assert.throws(
     () => InMemoryBTree.fromJSON(json, compareNumbers),
-    (err: Error) => err instanceof BTreeValidationError && err.message.includes('not sorted'),
+    (err: Error) =>
+      err instanceof BTreeValidationError && err.message.includes('not sorted'),
   );
 });

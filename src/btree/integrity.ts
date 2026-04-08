@@ -1,5 +1,6 @@
 import { BTreeInvariantError } from '../errors.js';
 import { computeAutoScaleTier } from './autoScale.js';
+import { applyLazyThreshold } from './rebalance.js';
 import {
   isLeafNode,
   leafEntryAt,
@@ -59,7 +60,9 @@ const validateLeafNodeOrdering = <TKey, TValue>(
           leafEntryAt(node, index).key,
         ) === 0
       ) {
-        throw new BTreeInvariantError('Duplicate user key detected in tree with uniqueness policy.');
+        throw new BTreeInvariantError(
+          'Duplicate user key detected in tree with uniqueness policy.',
+        );
       }
     }
   }
@@ -68,12 +71,7 @@ const validateLeafNodeOrdering = <TKey, TValue>(
     const first = leafEntryAt(node, index - 2);
     const second = leafEntryAt(node, index - 1);
     const third = leafEntryAt(node, index);
-    assertTransitivityAsInvariant(
-      state,
-      first.key,
-      second.key,
-      third.key,
-    );
+    assertTransitivityAsInvariant(state, first.key, second.key, third.key);
   }
 
   if (count > state.maxLeafEntries) {
@@ -90,17 +88,24 @@ const validateLeafNode = <TKey, TValue>(
 
   const count = leafEntryCount(node);
 
-  const baseMinLeaf = state.autoScale
+  let baseMinLeaf = state.autoScale
     ? Math.ceil(computeAutoScaleTier(0).maxLeaf / 2)
     : state.minLeafEntries;
+  if (state.deleteRebalancePolicy === 'lazy') {
+    baseMinLeaf = applyLazyThreshold(baseMinLeaf);
+  }
   if (node !== state.root && count < baseMinLeaf) {
-    throw new BTreeInvariantError('Non-root leaf node violates minimum occupancy.');
+    throw new BTreeInvariantError(
+      'Non-root leaf node violates minimum occupancy.',
+    );
   }
 
   const first = count === 0 ? null : leafEntryAt(node, 0);
   const last = count === 0 ? null : leafEntryAt(node, count - 1);
-  const minKey = first === null ? null : { key: first.key, sequence: first.entryId };
-  const maxKey = last === null ? null : { key: last.key, sequence: last.entryId };
+  const minKey =
+    first === null ? null : { key: first.key, sequence: first.entryId };
+  const maxKey =
+    last === null ? null : { key: last.key, sequence: last.entryId };
 
   return {
     minKey,
@@ -123,17 +128,18 @@ const validateBranchStructure = <TKey, TValue>(
   const baseMinBranch = state.autoScale
     ? Math.ceil(computeAutoScaleTier(0).maxBranch / 2)
     : state.minBranchChildren;
-  if (
-    node !== state.root &&
-    liveCount < baseMinBranch
-  ) {
-    throw new BTreeInvariantError('Non-root branch node violates minimum occupancy.');
+  if (node !== state.root && liveCount < baseMinBranch) {
+    throw new BTreeInvariantError(
+      'Non-root branch node violates minimum occupancy.',
+    );
   }
   if (liveCount > state.maxBranchChildren) {
     throw new BTreeInvariantError('Branch node exceeds maximum occupancy.');
   }
   if (node.keys.length !== node.children.length) {
-    throw new BTreeInvariantError('Branch keys array length does not match children array length.');
+    throw new BTreeInvariantError(
+      'Branch keys array length does not match children array length.',
+    );
   }
 };
 
@@ -145,27 +151,89 @@ const validateBranchChild = <TKey, TValue>(
 ): NodeValidationResult<TKey> => {
   const child: BTreeNode<TKey, TValue> = node.children[childIndex];
   if (child.parent !== node) {
-    throw new BTreeInvariantError('Child-parent pointer mismatch in branch node.');
+    throw new BTreeInvariantError(
+      'Child-parent pointer mismatch in branch node.',
+    );
   }
   if (child.indexInParent !== childIndex) {
-    throw new BTreeInvariantError('Child indexInParent does not match actual position in parent.');
+    throw new BTreeInvariantError(
+      'Child indexInParent does not match actual position in parent.',
+    );
   }
 
   const childValidation = validateNode(state, child, depth + 1);
   if (childValidation.minKey === null || childValidation.maxKey === null) {
-    throw new BTreeInvariantError('Branch child must not be empty in non-root branch tree.');
+    throw new BTreeInvariantError(
+      'Branch child must not be empty in non-root branch tree.',
+    );
   }
 
   const cachedMinKey = node.keys[childIndex];
   const actualMinKey = nodeMinKey<TKey, TValue>(child);
   if (
     actualMinKey === null ||
-    compareNodeKeys(state.compareKeys, cachedMinKey.key, cachedMinKey.sequence, actualMinKey.key, actualMinKey.sequence) !== 0
+    compareNodeKeys(
+      state.compareKeys,
+      cachedMinKey.key,
+      cachedMinKey.sequence,
+      actualMinKey.key,
+      actualMinKey.sequence,
+    ) !== 0
   ) {
-    throw new BTreeInvariantError('Branch cached key does not match actual child minimum key.');
+    throw new BTreeInvariantError(
+      'Branch cached key does not match actual child minimum key.',
+    );
   }
 
   return childValidation;
+};
+
+const mergeChildValidation = <TKey>(
+  state: BTreeState<TKey, unknown>,
+  accumulated: {
+    leafDepth: number | null;
+    leafCount: number;
+    branchCount: number;
+    entryCount: number;
+    minKey: NodeKey<TKey> | null;
+    maxKey: NodeKey<TKey> | null;
+    previousChildMax: NodeKey<TKey> | null;
+  },
+  childValidation: NodeValidationResult<TKey>,
+): void => {
+  if (
+    accumulated.leafDepth !== null &&
+    childValidation.leafDepth !== null &&
+    childValidation.leafDepth !== accumulated.leafDepth
+  ) {
+    throw new BTreeInvariantError('Leaf depth mismatch detected in tree.');
+  }
+  if (accumulated.leafDepth === null && childValidation.leafDepth !== null) {
+    accumulated.leafDepth = childValidation.leafDepth;
+  }
+
+  if (
+    accumulated.previousChildMax !== null &&
+    compareNodeKeys(
+      state.compareKeys,
+      accumulated.previousChildMax.key,
+      accumulated.previousChildMax.sequence,
+      childValidation.minKey!.key,
+      childValidation.minKey!.sequence,
+    ) >= 0
+  ) {
+    throw new BTreeInvariantError(
+      'Branch child key ranges are not strictly ordered.',
+    );
+  }
+
+  if (accumulated.minKey === null) accumulated.minKey = childValidation.minKey;
+  accumulated.maxKey = childValidation.maxKey;
+  accumulated.previousChildMax = childValidation.maxKey;
+
+  accumulated.leafCount += childValidation.leafCount;
+  accumulated.branchCount += childValidation.branchCount;
+  accumulated.entryCount += childValidation.entryCount;
 };
 
 const validateNode = <TKey, TValue>(
@@ -179,51 +247,33 @@ const validateNode = <TKey, TValue>(
 
   validateBranchStructure(state, node);
 
-  let leafDepth: number | null = null;
-  let leafCount = 0;
-  let branchCount = 1;
-  let entryCount = 0;
-  let minKey: NodeKey<TKey> | null = null;
-  let maxKey: NodeKey<TKey> | null = null;
-  let previousChildMax: NodeKey<TKey> | null = null;
+  const acc = {
+    leafDepth: null as number | null,
+    leafCount: 0,
+    branchCount: 1,
+    entryCount: 0,
+    minKey: null as NodeKey<TKey> | null,
+    maxKey: null as NodeKey<TKey> | null,
+    previousChildMax: null as NodeKey<TKey> | null,
+  };
 
-  for (let childIndex = node.childOffset; childIndex < node.children.length; childIndex += 1) {
+  for (
+    let childIndex = node.childOffset;
+    childIndex < node.children.length;
+    childIndex += 1
+  ) {
     const childValidation = validateBranchChild(state, node, childIndex, depth);
-
-    if (
-      leafDepth !== null &&
-      childValidation.leafDepth !== null &&
-      childValidation.leafDepth !== leafDepth
-    ) {
-      throw new BTreeInvariantError('Leaf depth mismatch detected in tree.');
-    }
-    if (leafDepth === null && childValidation.leafDepth !== null) {
-      leafDepth = childValidation.leafDepth;
-    }
-
-    if (
-      previousChildMax !== null &&
-      compareNodeKeys(
-        state.compareKeys,
-        previousChildMax.key,
-        previousChildMax.sequence,
-        childValidation.minKey!.key,
-        childValidation.minKey!.sequence,
-      ) >= 0
-    ) {
-      throw new BTreeInvariantError('Branch child key ranges are not strictly ordered.');
-    }
-
-    if (minKey === null) minKey = childValidation.minKey;
-    maxKey = childValidation.maxKey;
-    previousChildMax = childValidation.maxKey;
-
-    leafCount += childValidation.leafCount;
-    branchCount += childValidation.branchCount;
-    entryCount += childValidation.entryCount;
+    mergeChildValidation(state, acc, childValidation);
   }
 
-  return { minKey, maxKey, leafDepth, leafCount, branchCount, entryCount };
+  return {
+    minKey: acc.minKey,
+    maxKey: acc.maxKey,
+    leafDepth: acc.leafDepth,
+    leafCount: acc.leafCount,
+    branchCount: acc.branchCount,
+    entryCount: acc.entryCount,
+  };
 };
 
 export const assertInvariants = <TKey, TValue>(
@@ -231,7 +281,9 @@ export const assertInvariants = <TKey, TValue>(
 ): void => {
   const validation = validateNode(state, state.root, 0);
   if (validation.entryCount !== state.entryCount) {
-    throw new BTreeInvariantError('Index entry count mismatch between tree traversal and tracked state.');
+    throw new BTreeInvariantError(
+      'Index entry count mismatch between tree traversal and tracked state.',
+    );
   }
 
   validateLeafLinks(state, validation.leafCount);

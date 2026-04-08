@@ -115,7 +115,6 @@ void test('package json subpath exports for hybrid delivery', async (): Promise<
     './dist/core.cjs',
     'package.json exports["./core"].require must point to dist/core.cjs.',
   );
-
 });
 
 void test('package json sideEffects is false for full tree-shaking', async (): Promise<void> => {
@@ -131,7 +130,14 @@ void test('package json sideEffects is false for full tree-shaking', async (): P
 void test('package json files and build scripts for npm distribution', async (): Promise<void> => {
   const packageJson = await readJsonFile<PackageJsonShape>('package.json');
 
-  const requiredFiles = ['dist/**/*.js', 'dist/**/*.cjs', 'dist/**/*.d.ts', 'README.md', 'README-JA.md', 'LICENSE'];
+  const requiredFiles = [
+    'dist/**/*.js',
+    'dist/**/*.cjs',
+    'dist/**/*.d.ts',
+    'README.md',
+    'README-JA.md',
+    'LICENSE',
+  ];
   for (const file of requiredFiles) {
     assert.ok(
       packageJson.files?.includes(file) ?? false,

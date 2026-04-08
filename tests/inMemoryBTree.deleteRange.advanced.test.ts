@@ -56,7 +56,10 @@ void test('deleteRange works correctly after autoScale capacity growth', (): voi
 });
 
 void test('deleteRange() matches count() and range().length for all bound combinations', (): void => {
-  const boundCombos: { lowerBound?: 'inclusive' | 'exclusive'; upperBound?: 'inclusive' | 'exclusive' }[] = [
+  const boundCombos: {
+    lowerBound?: 'inclusive' | 'exclusive';
+    upperBound?: 'inclusive' | 'exclusive';
+  }[] = [
     {},
     { lowerBound: 'inclusive' },
     { upperBound: 'inclusive' },
@@ -80,8 +83,16 @@ void test('deleteRange() matches count() and range().length for all bound combin
     const countResult = treeForCount.count(10, 20, opts);
     const deleteResult = treeForDelete.deleteRange(10, 20, opts);
 
-    assert.equal(countResult, rangeLen, `count vs range().length mismatch for opts ${JSON.stringify(opts)}`);
-    assert.equal(deleteResult, countResult, `deleteRange vs count mismatch for opts ${JSON.stringify(opts)}`);
+    assert.equal(
+      countResult,
+      rangeLen,
+      `count vs range().length mismatch for opts ${JSON.stringify(opts)}`,
+    );
+    assert.equal(
+      deleteResult,
+      countResult,
+      `deleteRange vs count mismatch for opts ${JSON.stringify(opts)}`,
+    );
     treeForDelete.assertInvariants();
   }
 });
@@ -188,7 +199,13 @@ void test('deleteRange() with both bounds exclusive cleans up entryIds correctly
   const id3 = tree.put(3, 'v3');
   const id4 = tree.put(4, 'v4');
 
-  assert.equal(tree.deleteRange(1, 4, { lowerBound: 'exclusive', upperBound: 'exclusive' }), 2);
+  assert.equal(
+    tree.deleteRange(1, 4, {
+      lowerBound: 'exclusive',
+      upperBound: 'exclusive',
+    }),
+    2,
+  );
   // id1 and id4 should survive
   assert.deepEqual(tree.peekById(id1), { entryId: id1, key: 1, value: 'v1' });
   assert.deepEqual(tree.peekById(id4), { entryId: id4, key: 4, value: 'v4' });
@@ -214,11 +231,19 @@ void test('deleteRange() on bulk-loaded tree matches count()', (): void => {
 
   const expectedCount = tree.count(50, 200);
   const rangeLen = tree.range(50, 200).length;
-  assert.equal(expectedCount, rangeLen, 'count and range should agree before delete');
+  assert.equal(
+    expectedCount,
+    rangeLen,
+    'count and range should agree before delete',
+  );
   const sizeBefore = tree.size();
 
   const deleted = tree.deleteRange(50, 200);
-  assert.equal(deleted, expectedCount, `deleteRange deleted ${deleted} but count was ${expectedCount}`);
+  assert.equal(
+    deleted,
+    expectedCount,
+    `deleteRange deleted ${deleted} but count was ${expectedCount}`,
+  );
   assert.equal(tree.size(), sizeBefore - expectedCount);
   assert.equal(tree.get(40), 'v40');
   assert.equal(tree.get(50), null);
@@ -261,7 +286,10 @@ void test('clone() produces correct copy after deleteRange()', (): void => {
 
   const cloned = tree.clone();
   assert.equal(cloned.size(), tree.size());
-  assert.deepEqual(cloned.snapshot().map((e) => e.key), tree.snapshot().map((e) => e.key));
+  assert.deepEqual(
+    cloned.snapshot().map((e) => e.key),
+    tree.snapshot().map((e) => e.key),
+  );
   cloned.assertInvariants();
 
   // Structural independence: mutating clone does not affect original
@@ -338,11 +366,19 @@ void test('deleteRange() walks across leaves without triggering rebalance', (): 
 
 void test('deleteRange() works with string keys (lexicographic comparison)', (): void => {
   const tree = new InMemoryBTree<string, number>({
-    compareKeys: (a: string, b: string): number => a < b ? -1 : a > b ? 1 : 0,
+    compareKeys: (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0),
     maxLeafEntries: 3,
     maxBranchChildren: 3,
   });
-  const words = ['apple', 'banana', 'cherry', 'date', 'elderberry', 'fig', 'grape'];
+  const words = [
+    'apple',
+    'banana',
+    'cherry',
+    'date',
+    'elderberry',
+    'fig',
+    'grape',
+  ];
   for (const w of words) {
     tree.put(w, w.length);
   }

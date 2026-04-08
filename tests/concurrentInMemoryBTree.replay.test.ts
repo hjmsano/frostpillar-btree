@@ -122,10 +122,10 @@ void test('multiple no-op mutations do not corrupt tree state across instances',
   const id3 = await writerA.put(3, 'three');
 
   // Mix of no-op and effective operations
-  assert.equal(await writerB.remove(999), null);          // no-op: key 999 does not exist
-  assert.notEqual(await writerB.removeById(id1), null);   // effective: writerB syncs and removes id1
+  assert.equal(await writerB.remove(999), null); // no-op: key 999 does not exist
+  assert.notEqual(await writerB.removeById(id1), null); // effective: writerB syncs and removes id1
   assert.equal(await writerA.updateById(id1, 'updated'), null); // no-op: id1 already removed by writerB
-  assert.equal(await writerA.remove(888), null);          // no-op: key 888 does not exist
+  assert.equal(await writerA.remove(888), null); // no-op: key 888 does not exist
 
   const snapshot = await writerA.snapshot();
   const keys = snapshot.map((e) => e.key);

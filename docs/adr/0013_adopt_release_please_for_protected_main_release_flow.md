@@ -23,9 +23,11 @@ We need a release path that:
 4. Let Release Please open and manage release PRs, and create tags/releases only after release PR merge.
 5. Keep publish/build/upload steps in the same workflow but gate them with `steps.release.outputs.release_created == 'true'`.
 6. Keep GitHub Packages publish behavior:
+
 - owner-scoped package name `@<owner>/frostpillar-btree`
 - `pnpm publish --no-git-checks`
 - `NODE_AUTH_TOKEN=${{ secrets.GITHUB_TOKEN }}`
+
 7. Use `secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN` for Release Please token input.
 
 ## Consequences

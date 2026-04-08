@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { BTreeConcurrencyError, BTreeValidationError, ConcurrentInMemoryBTree } from '../src/index.js';
+import {
+  BTreeConcurrencyError,
+  BTreeValidationError,
+  ConcurrentInMemoryBTree,
+} from '../src/index.js';
 
 import { AtomicMemorySharedTreeStore } from './helpers/sharedTreeStoreStubs.js';
 
@@ -16,10 +20,9 @@ void test('concurrent duplicateKeys reject: throws on duplicate key insert', asy
   });
 
   await tree.put(5, 'a');
-  await assert.rejects(
-    async (): Promise<void> => { await tree.put(5, 'b'); },
-    BTreeValidationError,
-  );
+  await assert.rejects(async (): Promise<void> => {
+    await tree.put(5, 'b');
+  }, BTreeValidationError);
   assert.equal(await tree.size(), 1);
 });
 
@@ -55,10 +58,9 @@ void test('concurrent duplicateKeys reject: cross-instance duplicate detection',
   });
 
   await writerA.put(5, 'from-A');
-  await assert.rejects(
-    async (): Promise<void> => { await writerB.put(5, 'from-B'); },
-    BTreeValidationError,
-  );
+  await assert.rejects(async (): Promise<void> => {
+    await writerB.put(5, 'from-B');
+  }, BTreeValidationError);
   assert.equal(await writerA.size(), 1);
 });
 
@@ -101,10 +103,9 @@ void test('config mismatch: duplicateKeys difference throws on sync', async (): 
   });
 
   await writerA.put(1, 'one');
-  await assert.rejects(
-    async (): Promise<void> => { await writerB.put(2, 'two'); },
-    BTreeConcurrencyError,
-  );
+  await assert.rejects(async (): Promise<void> => {
+    await writerB.put(2, 'two');
+  }, BTreeConcurrencyError);
 });
 
 void test('config mismatch: maxLeafEntries difference throws on sync', async (): Promise<void> => {
@@ -121,10 +122,9 @@ void test('config mismatch: maxLeafEntries difference throws on sync', async ():
   });
 
   await writerA.put(1, 'one');
-  await assert.rejects(
-    async (): Promise<void> => { await writerB.put(2, 'two'); },
-    BTreeConcurrencyError,
-  );
+  await assert.rejects(async (): Promise<void> => {
+    await writerB.put(2, 'two');
+  }, BTreeConcurrencyError);
 });
 
 void test('config mismatch: enableEntryIdLookup difference throws on sync', async (): Promise<void> => {
@@ -141,10 +141,9 @@ void test('config mismatch: enableEntryIdLookup difference throws on sync', asyn
   });
 
   await writerA.put(1, 'one');
-  await assert.rejects(
-    async (): Promise<void> => { await writerB.put(2, 'two'); },
-    BTreeConcurrencyError,
-  );
+  await assert.rejects(async (): Promise<void> => {
+    await writerB.put(2, 'two');
+  }, BTreeConcurrencyError);
 });
 
 void test('config mismatch: enableEntryIdLookup undefined vs true throws on sync', async (): Promise<void> => {
@@ -160,10 +159,9 @@ void test('config mismatch: enableEntryIdLookup undefined vs true throws on sync
   });
 
   await writerA.put(1, 'one');
-  await assert.rejects(
-    async (): Promise<void> => { await writerB.put(2, 'two'); },
-    BTreeConcurrencyError,
-  );
+  await assert.rejects(async (): Promise<void> => {
+    await writerB.put(2, 'two');
+  }, BTreeConcurrencyError);
 });
 
 void test('config match: enableEntryIdLookup false and undefined are treated identically', async (): Promise<void> => {
@@ -198,10 +196,9 @@ void test('config mismatch: read-only instance detects mismatch on sync', async 
   });
 
   await writer.put(1, 'one');
-  await assert.rejects(
-    async (): Promise<void> => { await reader.size(); },
-    BTreeConcurrencyError,
-  );
+  await assert.rejects(async (): Promise<void> => {
+    await reader.size();
+  }, BTreeConcurrencyError);
 });
 
 void test('config mismatch: store state is not corrupted by failed instance', async (): Promise<void> => {
@@ -221,10 +218,9 @@ void test('config mismatch: store state is not corrupted by failed instance', as
   await writerA.put(2, 'two');
 
   // writerB fails due to config mismatch
-  await assert.rejects(
-    async (): Promise<void> => { await writerB.put(3, 'three'); },
-    BTreeConcurrencyError,
-  );
+  await assert.rejects(async (): Promise<void> => {
+    await writerB.put(3, 'three');
+  }, BTreeConcurrencyError);
 
   // writerA should still function — store not corrupted
   await writerA.put(3, 'three-from-A');
@@ -256,6 +252,3 @@ void test('matching config: instances with same config cooperate normally', asyn
   await writerB.put(2, 'two');
   assert.equal(await writerA.size(), 2);
 });
-
-
-

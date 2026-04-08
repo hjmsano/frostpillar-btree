@@ -25,8 +25,16 @@ void test('popFirst removes the smallest entry and coordinates through store', a
   const id10 = await tree.put(10, 'ten');
   await tree.put(20, 'twenty');
 
-  assert.deepEqual(await tree.popFirst(), { entryId: id5, key: 5, value: 'five' });
-  assert.deepEqual(await tree.popFirst(), { entryId: id10, key: 10, value: 'ten' });
+  assert.deepEqual(await tree.popFirst(), {
+    entryId: id5,
+    key: 5,
+    value: 'five',
+  });
+  assert.deepEqual(await tree.popFirst(), {
+    entryId: id10,
+    key: 10,
+    value: 'ten',
+  });
   assert.equal(await tree.size(), 1);
 });
 
@@ -44,7 +52,11 @@ void test('popFirst reflects cross-instance state through shared store', async (
   const id1 = await writer.put(1, 'one');
   await writer.put(2, 'two');
 
-  assert.deepEqual(await reader.popFirst(), { entryId: id1, key: 1, value: 'one' });
+  assert.deepEqual(await reader.popFirst(), {
+    entryId: id1,
+    key: 1,
+    value: 'one',
+  });
   assert.equal(await writer.size(), 1);
 });
 
@@ -62,15 +74,24 @@ void test('concurrent popFirst from two instances does not double-remove', async
   await treeA.put(1, 'one');
   await treeA.put(2, 'two');
 
-  const [resultA, resultB] = await Promise.all([treeA.popFirst(), treeB.popFirst()]);
+  const [resultA, resultB] = await Promise.all([
+    treeA.popFirst(),
+    treeB.popFirst(),
+  ]);
 
   // Both must be non-null (two entries, two pops)
   assert.notEqual(resultA, null, 'resultA should not be null');
   assert.notEqual(resultB, null, 'resultB should not be null');
   // Each instance must have removed a different key
-  assert.notEqual(resultA!.key, resultB!.key, 'each instance must remove a different key');
+  assert.notEqual(
+    resultA!.key,
+    resultB!.key,
+    'each instance must remove a different key',
+  );
 
-  const removedKeys = [resultA!.key, resultB!.key].sort((left: number, right: number): number => left - right);
+  const removedKeys = [resultA!.key, resultB!.key].sort(
+    (left: number, right: number): number => left - right,
+  );
   assert.deepEqual(removedKeys, [1, 2]);
   assert.equal(await treeA.size(), 0);
   await treeA.assertInvariants();
@@ -90,7 +111,11 @@ void test('remove(key) removes first matching entry through shared store', async
   const id5 = await writer.put(5, 'five');
   await writer.put(10, 'ten');
 
-  assert.deepEqual(await reader.remove(5), { entryId: id5, key: 5, value: 'five' });
+  assert.deepEqual(await reader.remove(5), {
+    entryId: id5,
+    key: 5,
+    value: 'five',
+  });
   assert.equal(await writer.hasKey(5), false);
   assert.equal(await writer.size(), 1);
 });
@@ -105,7 +130,11 @@ void test('remove(key) returns null for missing key without appending to store',
   await tree.put(1, 'one');
   const versionBefore = store.currentVersion;
   assert.equal(await tree.remove(999), null);
-  assert.equal(store.currentVersion, versionBefore, 'store version must not advance for a no-op remove');
+  assert.equal(
+    store.currentVersion,
+    versionBefore,
+    'store version must not advance for a no-op remove',
+  );
   assert.equal(await tree.size(), 1);
 });
 
@@ -121,7 +150,9 @@ void test('remove(key) with equal keys removes earliest entry through store', as
   const idB = await tree.put(5, 'b');
 
   assert.deepEqual(await tree.remove(5), { entryId: idA, key: 5, value: 'a' });
-  assert.deepEqual(await tree.snapshot(), [{ entryId: idB, key: 5, value: 'b' }]);
+  assert.deepEqual(await tree.snapshot(), [
+    { entryId: idB, key: 5, value: 'b' },
+  ]);
 });
 
 void test('range syncs and returns cross-instance entries inclusively', async (): Promise<void> => {
@@ -227,7 +258,11 @@ void test('removeById returns null for non-existent entryId without appending to
 
   const versionBefore = store.currentVersion;
   assert.equal(await tree.removeById(id), null);
-  assert.equal(store.currentVersion, versionBefore, 'store version must not advance for a no-op removeById');
+  assert.equal(
+    store.currentVersion,
+    versionBefore,
+    'store version must not advance for a no-op removeById',
+  );
   assert.equal(await tree.size(), 0);
 });
 
@@ -244,7 +279,11 @@ void test('updateById returns null for non-existent entryId without appending to
 
   const versionBefore = store.currentVersion;
   assert.equal(await tree.updateById(id, 'updated'), null);
-  assert.equal(store.currentVersion, versionBefore, 'store version must not advance for a no-op updateById');
+  assert.equal(
+    store.currentVersion,
+    versionBefore,
+    'store version must not advance for a no-op updateById',
+  );
   assert.equal(await tree.size(), 0);
 });
 

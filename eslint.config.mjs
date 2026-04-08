@@ -27,11 +27,7 @@ const eslintRecommendedConfig = {
 /** @type {import('eslint').Linter.Config[]} */
 const eslintConfig = tseslint.config(
   {
-    ignores: [
-      'dist/**',
-      'node_modules/**',
-      '.tmp-test-dist/**',
-    ],
+    ignores: ['dist/**', 'node_modules/**', '.tmp-test-dist/**'],
   },
   eslintRecommendedConfig,
   ...recommendedTypeCheckedConfigs,

@@ -4,7 +4,6 @@ import {
   findFirstMatchingUserKey,
   findLeafForKey,
   findLeafFromHint,
-  lowerBoundInLeaf,
   upperBoundInLeaf,
 } from './navigation.js';
 import {
@@ -36,13 +35,22 @@ import {
   type LeafNode,
 } from './types.js';
 
+export {
+  peekEntryById,
+  removeEntryById,
+  updateEntryById,
+} from './entry-lookup.js';
+
 const insertChildAfter = <TKey, TValue>(
   state: BTreeState<TKey, TValue>,
   parent: BranchNode<TKey, TValue>,
   existingChild: BTreeNode<TKey, TValue>,
   childToInsert: BTreeNode<TKey, TValue>,
 ): void => {
-  const newChildMinKey: NodeKey<TKey> = { key: undefined as unknown as TKey, sequence: 0 };
+  const newChildMinKey: NodeKey<TKey> = {
+    key: undefined as unknown as TKey,
+    sequence: 0,
+  };
   if (!writeMinKeyTo<TKey, TValue>(childToInsert, newChildMinKey)) {
     throw new BTreeInvariantError('inserted child has no min key');
   }
@@ -61,13 +69,24 @@ const splitLeaf = <TKey, TValue>(
   leafCompact(leaf);
   const splitAt = Math.ceil(leaf.entries.length / 2);
   const sibling: LeafNode<TKey, TValue> = {
-    kind: NODE_LEAF, entries: leaf.entries.splice(splitAt), entryOffset: 0,
-    parent: leaf.parent, indexInParent: 0, prev: leaf, next: leaf.next,
+    kind: NODE_LEAF,
+    entries: leaf.entries.splice(splitAt),
+    entryOffset: 0,
+    parent: leaf.parent,
+    indexInParent: 0,
+    prev: leaf,
+    next: leaf.next,
   };
-  if (leaf.next !== null) { leaf.next.prev = sibling; }
-  else { state.rightmostLeaf = sibling; }
+  if (leaf.next !== null) {
+    leaf.next.prev = sibling;
+  } else {
+    state.rightmostLeaf = sibling;
+  }
   leaf.next = sibling;
-  if (leaf.parent === null) { state.root = createBranchNode([leaf, sibling], null); return; }
+  if (leaf.parent === null) {
+    state.root = createBranchNode([leaf, sibling], null);
+    return;
+  }
   insertChildAfter(state, leaf.parent, leaf, sibling);
 };
 
@@ -77,10 +96,53 @@ const splitBranch = <TKey, TValue>(
 ): void => {
   branchCompact(branch);
   const splitAt = Math.ceil(branch.children.length / 2);
-  const sibling = createBranchNode(branch.children.splice(splitAt), branch.parent);
+  const sibling = createBranchNode(
+    branch.children.splice(splitAt),
+    branch.parent,
+  );
   branch.keys.splice(splitAt);
-  if (branch.parent === null) { state.root = createBranchNode([branch, sibling], null); return; }
+  if (branch.parent === null) {
+    state.root = createBranchNode([branch, sibling], null);
+    return;
+  }
   insertChildAfter(state, branch.parent, branch, sibling);
+};
+
+interface DuplicateHit<TKey, TValue> {
+  leaf: LeafNode<TKey, TValue>;
+  physIndex: number;
+  entry: LeafEntry<TKey, TValue>;
+}
+
+const findDuplicateEntry = <TKey, TValue>(
+  state: BTreeState<TKey, TValue>,
+  targetLeaf: LeafNode<TKey, TValue>,
+  key: TKey,
+  insertAt: number,
+): DuplicateHit<TKey, TValue> | null => {
+  if (state.duplicateKeys === 'allow') return null;
+  if (insertAt > 0) {
+    const candidate = leafEntryAt(targetLeaf, insertAt - 1);
+    if (state.compareKeys(candidate.key, key) === 0) {
+      return {
+        leaf: targetLeaf,
+        physIndex: targetLeaf.entryOffset + insertAt - 1,
+        entry: candidate,
+      };
+    }
+  } else if (targetLeaf.prev !== null && leafEntryCount(targetLeaf.prev) > 0) {
+    const prevLeaf = targetLeaf.prev;
+    const prevCount = leafEntryCount(prevLeaf);
+    const candidate = leafEntryAt(prevLeaf, prevCount - 1);
+    if (state.compareKeys(candidate.key, key) === 0) {
+      return {
+        leaf: prevLeaf,
+        physIndex: prevLeaf.entryOffset + prevCount - 1,
+        entry: candidate,
+      };
+    }
+  }
+  return null;
 };
 
 const putEntryIntoLeaf = <TKey, TValue>(
@@ -92,44 +154,44 @@ const putEntryIntoLeaf = <TKey, TValue>(
   const sequence = state.nextSequence;
   const insertAt = upperBoundInLeaf(state, targetLeaf, key, sequence);
 
-  if (state.duplicateKeys !== 'allow') {
-    let existingEntry: LeafEntry<TKey, TValue> | null = null;
-    if (insertAt > 0) {
-      const candidate = leafEntryAt(targetLeaf, insertAt - 1);
-      if (state.compareKeys(candidate.key, key) === 0) {
-        existingEntry = candidate;
-      }
-    } else if (targetLeaf.prev !== null && leafEntryCount(targetLeaf.prev) > 0) {
-      const prevLeaf = targetLeaf.prev;
-      const candidate = leafEntryAt(prevLeaf, leafEntryCount(prevLeaf) - 1);
-      if (state.compareKeys(candidate.key, key) === 0) {
-        existingEntry = candidate;
-      }
+  const dup = findDuplicateEntry(state, targetLeaf, key, insertAt);
+  if (dup !== null) {
+    if (state.duplicateKeys === 'reject') {
+      throw new BTreeValidationError('Duplicate key rejected.');
     }
-    if (existingEntry !== null) {
-      if (state.duplicateKeys === 'reject') {
-        throw new BTreeValidationError('Duplicate key rejected.');
-      }
-      existingEntry.value = value;
-      return existingEntry.entryId;
-    }
+    dup.leaf.entries[dup.physIndex] = {
+      entryId: dup.entry.entryId,
+      key: dup.entry.key,
+      value,
+    };
+    return dup.entry.entryId;
   }
 
   if (state.nextSequence >= Number.MAX_SAFE_INTEGER) {
     throw new BTreeValidationError('Sequence overflow.');
   }
   state.nextSequence += 1;
-  leafInsertAt(targetLeaf, insertAt, { key, entryId: sequence as EntryId, value });
+  leafInsertAt(targetLeaf, insertAt, {
+    key,
+    entryId: sequence as EntryId,
+    value,
+  });
   state.entryCount += 1;
-  if (state.entryKeys !== null) { state.entryKeys.set(sequence as EntryId, key); }
-  if (insertAt === 0 && targetLeaf.parent !== null) updateMinKeyInAncestors(targetLeaf);
-  if (leafEntryCount(targetLeaf) > state.maxLeafEntries) splitLeaf(state, targetLeaf);
+  if (state.entryKeys !== null) {
+    state.entryKeys.set(sequence as EntryId, key);
+  }
+  if (insertAt === 0 && targetLeaf.parent !== null)
+    updateMinKeyInAncestors(targetLeaf);
+  if (leafEntryCount(targetLeaf) > state.maxLeafEntries)
+    splitLeaf(state, targetLeaf);
   maybeAutoScale(state);
   return sequence as EntryId;
 };
 
 export const putEntry = <TKey, TValue>(
-  state: BTreeState<TKey, TValue>, key: TKey, value: TValue,
+  state: BTreeState<TKey, TValue>,
+  key: TKey,
+  value: TValue,
 ): EntryId => {
   const targetLeaf = findLeafForKey(state, key, state.nextSequence);
   return putEntryIntoLeaf(state, targetLeaf, key, value);
@@ -140,15 +202,21 @@ export const popFirstEntry = <TKey, TValue>(
 ): BTreeEntry<TKey, TValue> | null => {
   if (state.entryCount === 0) return null;
   const firstEntry = leafShiftEntry(state.leftmostLeaf);
-  if (firstEntry === undefined) throw new BTreeInvariantError('leftmost leaf empty but count > 0');
+  if (firstEntry === undefined)
+    throw new BTreeInvariantError('leftmost leaf empty but count > 0');
   state.entryCount -= 1;
-  if (state.entryKeys !== null) { state.entryKeys.delete(firstEntry.entryId); }
-  if (leafEntryCount(state.leftmostLeaf) > 0 && state.leftmostLeaf.parent !== null) {
+  if (state.entryKeys !== null) {
+    state.entryKeys.delete(firstEntry.entryId);
+  }
+  if (
+    leafEntryCount(state.leftmostLeaf) > 0 &&
+    state.leftmostLeaf.parent !== null
+  ) {
     updateMinKeyInAncestors(state.leftmostLeaf);
   }
   if (
-    state.leftmostLeaf !== state.root
-    && leafEntryCount(state.leftmostLeaf) < state.minLeafEntries
+    state.leftmostLeaf !== state.root &&
+    leafEntryCount(state.leftmostLeaf) < state.minLeafEntries
   ) {
     rebalanceAfterLeafRemoval(state, state.leftmostLeaf);
   }
@@ -160,12 +228,15 @@ export const popLastEntry = <TKey, TValue>(
 ): BTreeEntry<TKey, TValue> | null => {
   if (state.entryCount === 0) return null;
   const lastEntry = leafPopEntry(state.rightmostLeaf);
-  if (lastEntry === undefined) throw new BTreeInvariantError('rightmost leaf empty but count > 0');
+  if (lastEntry === undefined)
+    throw new BTreeInvariantError('rightmost leaf empty but count > 0');
   state.entryCount -= 1;
-  if (state.entryKeys !== null) { state.entryKeys.delete(lastEntry.entryId); }
+  if (state.entryKeys !== null) {
+    state.entryKeys.delete(lastEntry.entryId);
+  }
   if (
-    state.rightmostLeaf !== state.root
-    && leafEntryCount(state.rightmostLeaf) < state.minLeafEntries
+    state.rightmostLeaf !== state.root &&
+    leafEntryCount(state.rightmostLeaf) < state.minLeafEntries
   ) {
     rebalanceAfterLeafRemoval(state, state.rightmostLeaf);
   }
@@ -173,7 +244,8 @@ export const popLastEntry = <TKey, TValue>(
 };
 
 export const removeFirstMatchingEntry = <TKey, TValue>(
-  state: BTreeState<TKey, TValue>, key: TKey,
+  state: BTreeState<TKey, TValue>,
+  key: TKey,
 ): BTreeEntry<TKey, TValue> | null => {
   const found = findFirstMatchingUserKey(state, key);
   if (found === null) return null;
@@ -182,81 +254,22 @@ export const removeFirstMatchingEntry = <TKey, TValue>(
   const targetEntry = leafEntryAt(targetLeaf, removeAt);
   leafRemoveAt(targetLeaf, removeAt);
   state.entryCount -= 1;
-  if (state.entryKeys !== null) { state.entryKeys.delete(targetEntry.entryId); }
-  if (removeAt === 0 && leafEntryCount(targetLeaf) > 0 && targetLeaf.parent !== null) updateMinKeyInAncestors(targetLeaf);
-  if (targetLeaf !== state.root && leafEntryCount(targetLeaf) < state.minLeafEntries) {
+  if (state.entryKeys !== null) {
+    state.entryKeys.delete(targetEntry.entryId);
+  }
+  if (
+    removeAt === 0 &&
+    leafEntryCount(targetLeaf) > 0 &&
+    targetLeaf.parent !== null
+  )
+    updateMinKeyInAncestors(targetLeaf);
+  if (
+    targetLeaf !== state.root &&
+    leafEntryCount(targetLeaf) < state.minLeafEntries
+  ) {
     rebalanceAfterLeafRemoval(state, targetLeaf);
   }
   return targetEntry;
-};
-
-const findLeafEntryBySequence = <TKey, TValue>(
-  state: BTreeState<TKey, TValue>,
-  userKey: TKey,
-  sequence: number,
-): { leaf: LeafNode<TKey, TValue>; index: number } | null => {
-  const targetLeaf = findLeafForKey(state, userKey, sequence);
-  const index = lowerBoundInLeaf(state, targetLeaf, userKey, sequence);
-  if (index >= leafEntryCount(targetLeaf)) return null;
-  const entry = leafEntryAt(targetLeaf, index);
-  if (entry.entryId !== sequence) return null;
-  return { leaf: targetLeaf, index };
-};
-
-export const removeEntryById = <TKey, TValue>(
-  state: BTreeState<TKey, TValue>,
-  entryId: EntryId,
-): BTreeEntry<TKey, TValue> | null => {
-  if (state.entryKeys === null) {
-    throw new BTreeInvariantError('entryKeys lookup map is not enabled on this tree.');
-  }
-  const userKey = state.entryKeys.get(entryId);
-  if (userKey === undefined) return null;
-  const found = findLeafEntryBySequence(state, userKey, entryId);
-  if (found === null) return null;
-  const entry = leafEntryAt(found.leaf, found.index);
-  leafRemoveAt(found.leaf, found.index);
-  state.entryCount -= 1;
-  state.entryKeys.delete(entryId);
-  if (found.index === 0 && leafEntryCount(found.leaf) > 0 && found.leaf.parent !== null) {
-    updateMinKeyInAncestors(found.leaf);
-  }
-  if (found.leaf !== state.root && leafEntryCount(found.leaf) < state.minLeafEntries) {
-    rebalanceAfterLeafRemoval(state, found.leaf);
-  }
-  return entry;
-};
-
-export const peekEntryById = <TKey, TValue>(
-  state: BTreeState<TKey, TValue>,
-  entryId: EntryId,
-): BTreeEntry<TKey, TValue> | null => {
-  if (state.entryKeys === null) {
-    throw new BTreeInvariantError('entryKeys lookup map is not enabled on this tree.');
-  }
-  const userKey = state.entryKeys.get(entryId);
-  if (userKey === undefined) return null;
-  const found = findLeafEntryBySequence(state, userKey, entryId);
-  if (found === null) return null;
-  const entry = leafEntryAt(found.leaf, found.index);
-  return entry;
-};
-
-export const updateEntryById = <TKey, TValue>(
-  state: BTreeState<TKey, TValue>,
-  entryId: EntryId,
-  newValue: TValue,
-): BTreeEntry<TKey, TValue> | null => {
-  if (state.entryKeys === null) {
-    throw new BTreeInvariantError('entryKeys lookup map is not enabled on this tree.');
-  }
-  const userKey = state.entryKeys.get(entryId);
-  if (userKey === undefined) return null;
-  const found = findLeafEntryBySequence(state, userKey, entryId);
-  if (found === null) return null;
-  const entry = leafEntryAt(found.leaf, found.index);
-  entry.value = newValue;
-  return entry;
 };
 
 export const putManyEntries = <TKey, TValue>(
@@ -270,7 +283,9 @@ export const putManyEntries = <TKey, TValue>(
   for (let i = 1; i < entries.length; i += 1) {
     const cmp = state.compareKeys(entries[i - 1].key, entries[i].key);
     if (cmp > 0) {
-      throw new BTreeValidationError('putMany: entries not in ascending order.');
+      throw new BTreeValidationError(
+        'putMany: entries not in ascending order.',
+      );
     }
     if (strictlyAscending && cmp === 0) {
       throw new BTreeValidationError(
@@ -287,7 +302,12 @@ export const putManyEntries = <TKey, TValue>(
     let hintLeaf = findLeafForKey(state, entries[0].key, state.nextSequence);
     for (let i = 0; i < entries.length; i += 1) {
       const entry = entries[i];
-      const targetLeaf = findLeafFromHint(state, hintLeaf, entry.key, state.nextSequence);
+      const targetLeaf = findLeafFromHint(
+        state,
+        hintLeaf,
+        entry.key,
+        state.nextSequence,
+      );
       ids[i] = putEntryIntoLeaf(state, targetLeaf, entry.key, entry.value);
       hintLeaf = targetLeaf;
     }

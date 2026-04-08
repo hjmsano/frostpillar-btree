@@ -1,6 +1,8 @@
 import {
+  freezeEntry,
   leafEntryAt,
   leafEntryCount,
+  toPublicEntry,
   type BTreeEntry,
   type BTreeState,
   type LeafNode,
@@ -75,60 +77,79 @@ export const countRangeEntries = <TKey, TValue>(
       cursorIndex = 0;
       continue;
     }
-    // Fast-path: if last entry in leaf is within range, count the whole remainder
-    const lastEntry = leafEntryAt(cursorLeaf, leafCount - 1);
-    const cmpLast = compare(lastEntry.key, endKey);
-    if (upperExclusive ? cmpLast < 0 : cmpLast <= 0) {
+    const lastKey = leafEntryAt(cursorLeaf, leafCount - 1).key;
+    if (isLastEntryInRange(lastKey, endKey, compare, upperExclusive)) {
       count += leafCount - cursorIndex;
       cursorLeaf = cursorLeaf.next;
       cursorIndex = 0;
       continue;
     }
-    // Boundary leaf: use binary search to find end position
-    const endSeq = upperExclusive ? 0 : Number.MAX_SAFE_INTEGER;
-    const endBound = upperExclusive
-      ? lowerBoundInLeaf(state, cursorLeaf, endKey, endSeq)
-      : upperBoundInLeaf(state, cursorLeaf, endKey, endSeq);
-    const limit = endBound < leafCount ? endBound : leafCount;
-    count += limit - cursorIndex;
+    count +=
+      findBoundaryEnd(state, cursorLeaf, endKey, upperExclusive, leafCount) -
+      cursorIndex;
     return count;
   }
 
   return count;
 };
 
+/** Check if the last entry in a leaf is within the query range (whole-leaf fast-path). */
+const isLastEntryInRange = <TKey>(
+  lastKey: TKey,
+  endKey: TKey,
+  compare: (left: TKey, right: TKey) => number,
+  upperExclusive: boolean,
+): boolean => {
+  const cmp = compare(lastKey, endKey);
+  return upperExclusive ? cmp < 0 : cmp <= 0;
+};
+
+/** Binary search to find the end position within a boundary leaf. */
+const findBoundaryEnd = <TKey, TValue>(
+  state: BTreeState<TKey, TValue>,
+  leaf: LeafNode<TKey, TValue>,
+  endKey: TKey,
+  upperExclusive: boolean,
+  leafCount: number,
+): number => {
+  const endSeq = upperExclusive ? 0 : Number.MAX_SAFE_INTEGER;
+  const endBound = upperExclusive
+    ? lowerBoundInLeaf(state, leaf, endKey, endSeq)
+    : upperBoundInLeaf(state, leaf, endKey, endSeq);
+  return endBound < leafCount ? endBound : leafCount;
+};
+
 /** Threshold above which pre-allocation via countRangeEntries pays off vs. dynamic push(). */
 const RANGE_PREALLOC_THRESHOLD = 200;
 
-/** Determine the initial output array for rangeQueryEntries. */
+/** Determine the initial output array for range query results. */
 const allocateRangeOutput = <TKey, TValue>(
   state: BTreeState<TKey, TValue>,
-  cursorLeaf: LeafNode<TKey, TValue>,
-  cursorIndex: number,
-  compare: (left: TKey, right: TKey) => number,
-  upperExclusive: boolean,
+  cursor: RangeCursor<TKey, TValue>,
   startKey: TKey,
   endKey: TKey,
   options?: RangeBounds,
 ): BTreeEntry<TKey, TValue>[] => {
-  const firstLeafCount = leafEntryCount(cursorLeaf);
-  const firstLeafRemainder = firstLeafCount - cursorIndex;
+  const firstLeafCount = leafEntryCount(cursor.leaf);
+  const firstLeafRemainder = firstLeafCount - cursor.index;
   if (
-    firstLeafRemainder >= RANGE_PREALLOC_THRESHOLD
-    && cursorLeaf.next !== null
+    firstLeafRemainder >= RANGE_PREALLOC_THRESHOLD &&
+    cursor.leaf.next !== null
   ) {
-    const lastEntry = leafEntryAt(cursorLeaf, firstLeafCount - 1);
-    const cmpLast = compare(lastEntry.key, endKey);
-    if (upperExclusive ? cmpLast < 0 : cmpLast <= 0) {
-      const total = countRangeEntries(state, startKey, endKey, options);
-      return new Array<BTreeEntry<TKey, TValue>>(total);
+    const lastKey = leafEntryAt(cursor.leaf, firstLeafCount - 1).key;
+    if (
+      isLastEntryInRange(lastKey, endKey, cursor.compare, cursor.upperExclusive)
+    ) {
+      return new Array<BTreeEntry<TKey, TValue>>(
+        countRangeEntries(state, startKey, endKey, options),
+      );
     }
   }
   return [];
 };
 
-/** Append entries from a leaf slice to the output array. */
-const appendLeafSlice = <TKey, TValue>(
+/** Append entries from a leaf slice to the output array, applying toPublicEntry inline. */
+const appendLeafSlicePublic = <TKey, TValue>(
   leaf: LeafNode<TKey, TValue>,
   from: number,
   to: number,
@@ -138,17 +159,70 @@ const appendLeafSlice = <TKey, TValue>(
 ): number => {
   if (useIndexed) {
     for (let i = from; i < to; i += 1) {
-      output[writeIdx++] = leafEntryAt(leaf, i);
+      output[writeIdx++] = toPublicEntry(leafEntryAt(leaf, i));
     }
   } else {
     for (let i = from; i < to; i += 1) {
-      output.push(leafEntryAt(leaf, i));
+      output.push(toPublicEntry(leafEntryAt(leaf, i)));
     }
   }
   return writeIdx;
 };
 
-export const rangeQueryEntries = <TKey, TValue>(
+/** Walk cursor through leaves, appending public entries to output. */
+const collectPublicEntries = <TKey, TValue>(
+  state: BTreeState<TKey, TValue>,
+  cursor: RangeCursor<TKey, TValue>,
+  endKey: TKey,
+  output: BTreeEntry<TKey, TValue>[],
+): void => {
+  const { compare, upperExclusive } = cursor;
+  let cursorLeaf: LeafNode<TKey, TValue> | null = cursor.leaf;
+  let cursorIndex = cursor.index;
+  let writeIdx = 0;
+  const useIndexed = output.length > 0;
+  while (cursorLeaf !== null) {
+    const leafCount = leafEntryCount(cursorLeaf);
+    if (cursorIndex >= leafCount) {
+      cursorLeaf = cursorLeaf.next;
+      cursorIndex = 0;
+      continue;
+    }
+    const lastKey = leafEntryAt(cursorLeaf, leafCount - 1).key;
+    if (isLastEntryInRange(lastKey, endKey, compare, upperExclusive)) {
+      writeIdx = appendLeafSlicePublic(
+        cursorLeaf,
+        cursorIndex,
+        leafCount,
+        output,
+        useIndexed,
+        writeIdx,
+      );
+      cursorLeaf = cursorLeaf.next;
+      cursorIndex = 0;
+      continue;
+    }
+    const limit = findBoundaryEnd(
+      state,
+      cursorLeaf,
+      endKey,
+      upperExclusive,
+      leafCount,
+    );
+    appendLeafSlicePublic(
+      cursorLeaf,
+      cursorIndex,
+      limit,
+      output,
+      useIndexed,
+      writeIdx,
+    );
+    return;
+  }
+};
+
+/** Single-pass range query that produces public entries (with toPublicEntry) inline. */
+export const rangeQueryPublicEntries = <TKey, TValue>(
   state: BTreeState<TKey, TValue>,
   startKey: TKey,
   endKey: TKey,
@@ -156,14 +230,25 @@ export const rangeQueryEntries = <TKey, TValue>(
 ): BTreeEntry<TKey, TValue>[] => {
   const cursor = initRangeCursor(state, startKey, endKey, options);
   if (cursor === null) return [];
+  const output = allocateRangeOutput(state, cursor, startKey, endKey, options);
+  collectPublicEntries(state, cursor, endKey, output);
+  return output;
+};
+
+/** Streaming range iteration — invokes callback for each entry without array allocation. */
+export const forEachRangeEntries = <TKey, TValue>(
+  state: BTreeState<TKey, TValue>,
+  startKey: TKey,
+  endKey: TKey,
+  callback: (entry: BTreeEntry<TKey, TValue>) => void,
+  options?: RangeBounds,
+): void => {
+  const cursor = initRangeCursor(state, startKey, endKey, options);
+  if (cursor === null) return;
 
   let cursorLeaf: LeafNode<TKey, TValue> | null = cursor.leaf;
   let cursorIndex = cursor.index;
   const { compare, upperExclusive } = cursor;
-
-  const output = allocateRangeOutput(state, cursorLeaf, cursorIndex, compare, upperExclusive, startKey, endKey, options);
-  let writeIdx = 0;
-  const useIndexed = output.length > 0;
 
   while (cursorLeaf !== null) {
     const leafCount = leafEntryCount(cursorLeaf);
@@ -172,22 +257,25 @@ export const rangeQueryEntries = <TKey, TValue>(
       cursorIndex = 0;
       continue;
     }
-    const lastEntry = leafEntryAt(cursorLeaf, leafCount - 1);
-    const cmpLast = compare(lastEntry.key, endKey);
-    if (upperExclusive ? cmpLast < 0 : cmpLast <= 0) {
-      writeIdx = appendLeafSlice(cursorLeaf, cursorIndex, leafCount, output, useIndexed, writeIdx);
+    const lastKey = leafEntryAt(cursorLeaf, leafCount - 1).key;
+    if (isLastEntryInRange(lastKey, endKey, compare, upperExclusive)) {
+      for (let i = cursorIndex; i < leafCount; i += 1) {
+        callback(freezeEntry(leafEntryAt(cursorLeaf, i)));
+      }
       cursorLeaf = cursorLeaf.next;
       cursorIndex = 0;
       continue;
     }
-    const endSeq = upperExclusive ? 0 : Number.MAX_SAFE_INTEGER;
-    const endBound = upperExclusive
-      ? lowerBoundInLeaf(state, cursorLeaf, endKey, endSeq)
-      : upperBoundInLeaf(state, cursorLeaf, endKey, endSeq);
-    const limit = endBound < leafCount ? endBound : leafCount;
-    appendLeafSlice(cursorLeaf, cursorIndex, limit, output, useIndexed, writeIdx);
-    return output;
+    const limit = findBoundaryEnd(
+      state,
+      cursorLeaf,
+      endKey,
+      upperExclusive,
+      leafCount,
+    );
+    for (let i = cursorIndex; i < limit; i += 1) {
+      callback(freezeEntry(leafEntryAt(cursorLeaf, i)));
+    }
+    return;
   }
-
-  return output;
 };

@@ -17,16 +17,16 @@ WI-12 requires reassessment of deferred items to determine whether any should be
 
 All core operations show healthy normalized performance at 65K entries:
 
-| Operation | ns/op (65K) | Scaling |
-|---|---|---|
-| put | 189.27 | 11.83ns/log2N |
-| remove | 243.12 | 15.20ns/log2N |
-| pop-first | 39.21 | 2.45ns/log2N |
-| head-access | 8.72 | O(1) |
-| exists-point | 182.71 | 11.42ns/log2N |
-| select-point | 181.69 | 11.36ns/log2N |
-| select-window | 531.91 | 33.24ns/log2N |
-| put-many-empty | 73.03 | O(N) amortized |
+| Operation      | ns/op (65K) | Scaling        |
+| -------------- | ----------- | -------------- |
+| put            | 189.27      | 11.83ns/log2N  |
+| remove         | 243.12      | 15.20ns/log2N  |
+| pop-first      | 39.21       | 2.45ns/log2N   |
+| head-access    | 8.72        | O(1)           |
+| exists-point   | 182.71      | 11.42ns/log2N  |
+| select-point   | 181.69      | 11.36ns/log2N  |
+| select-window  | 531.91      | 33.24ns/log2N  |
+| put-many-empty | 73.03       | O(N) amortized |
 
 No regression observed compared to pre-expansion baselines.
 
@@ -36,15 +36,15 @@ No regression observed compared to pre-expansion baselines.
 
 ### Item-by-item assessment
 
-| Deferred item | Verdict | Rationale |
-|---|---|---|
-| `toArray`/`keysArray`/`valuesArray` | Keep deferred | Trivial user-space wrappers via spread (`[...tree.keys()]`). Zero API value over existing iterators. Adding them increases API surface without functionality gain. |
-| `map`/`filter`/`reduce` | Keep deferred | Thin wrappers once iterators exist. Users compose naturally with `for...of` or `Array.from(tree.entries()).map(...)`. Library should not duplicate standard iteration patterns. |
-| Full ES6 `Map` compatibility | Keep deferred | `Map` semantics (unordered, identity-based equality) conflict with B+ tree semantics (comparator-ordered, value-based equality). Forcing compatibility creates misleading API expectations. |
-| Immutable API (`with`/`without`) | Keep deferred | Requires either structural sharing (complex persistent data structure) or full clone per mutation (O(N) per operation). No upstream consumer has requested immutable semantics. |
-| Set operations (union, intersection, difference) | Keep deferred | Requires two-tree merge logic with comparator-aware interleaving. Performance is highly workload-dependent and difficult to guarantee without subtree-size augmentation. |
-| Rank queries (kth element, rank of key) | Keep deferred | Requires subtree-size augmentation in every internal node, changing core node invariants, split/merge logic, and rebalance behavior. Highest risk to hot-path performance among all deferred items. |
-| `freeze`/`unfreeze` | Keep deferred | Read-only enforcement has moderate value, but `clone()` plus caller discipline achieves the same safety. Adding freeze state to every mutation path introduces branching overhead on hot paths. |
+| Deferred item                                    | Verdict       | Rationale                                                                                                                                                                                           |
+| ------------------------------------------------ | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `toArray`/`keysArray`/`valuesArray`              | Keep deferred | Trivial user-space wrappers via spread (`[...tree.keys()]`). Zero API value over existing iterators. Adding them increases API surface without functionality gain.                                  |
+| `map`/`filter`/`reduce`                          | Keep deferred | Thin wrappers once iterators exist. Users compose naturally with `for...of` or `Array.from(tree.entries()).map(...)`. Library should not duplicate standard iteration patterns.                     |
+| Full ES6 `Map` compatibility                     | Keep deferred | `Map` semantics (unordered, identity-based equality) conflict with B+ tree semantics (comparator-ordered, value-based equality). Forcing compatibility creates misleading API expectations.         |
+| Immutable API (`with`/`without`)                 | Keep deferred | Requires either structural sharing (complex persistent data structure) or full clone per mutation (O(N) per operation). No upstream consumer has requested immutable semantics.                     |
+| Set operations (union, intersection, difference) | Keep deferred | Requires two-tree merge logic with comparator-aware interleaving. Performance is highly workload-dependent and difficult to guarantee without subtree-size augmentation.                            |
+| Rank queries (kth element, rank of key)          | Keep deferred | Requires subtree-size augmentation in every internal node, changing core node invariants, split/merge logic, and rebalance behavior. Highest risk to hot-path performance among all deferred items. |
+| `freeze`/`unfreeze`                              | Keep deferred | Read-only enforcement has moderate value, but `clone()` plus caller discipline achieves the same safety. Adding freeze state to every mutation path introduces branching overhead on hot paths.     |
 
 ### Promotion criteria for future reassessment
 

@@ -74,7 +74,10 @@ void test('count with both bounds exclusive', async (): Promise<void> => {
   await seedTree(writer);
 
   assert.equal(
-    await reader.count(10, 40, { lowerBound: 'exclusive', upperBound: 'exclusive' }),
+    await reader.count(10, 40, {
+      lowerBound: 'exclusive',
+      upperBound: 'exclusive',
+    }),
     2,
   );
 });
