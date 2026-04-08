@@ -104,10 +104,7 @@ const main = async () => {
 
   const nodeFlags = ['--test'];
   if (coverage) {
-    nodeFlags.push(
-      '--experimental-test-coverage',
-      '--enable-source-maps',
-    );
+    nodeFlags.push('--experimental-test-coverage', '--enable-source-maps');
   }
   await runCommand('node', [...nodeFlags, ...compiledTestFiles]);
 };

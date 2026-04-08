@@ -1,5 +1,8 @@
-import type { EntryId, InMemoryBTreeConfig, RangeBounds } from '../InMemoryBTree.js';
-
+import type {
+  EntryId,
+  InMemoryBTreeConfig,
+  RangeBounds,
+} from '../InMemoryBTree.js';
 
 export type BTreeMutation<TKey, TValue> =
   | { type: 'init'; configFingerprint: string }
@@ -19,9 +22,7 @@ export interface SharedTreeLog<TKey, TValue> {
 }
 
 export interface SharedTreeStore<TKey, TValue> {
-  getLogEntriesSince(
-    version: bigint,
-  ): Promise<SharedTreeLog<TKey, TValue>>;
+  getLogEntriesSince(version: bigint): Promise<SharedTreeLog<TKey, TValue>>;
   append(
     expectedVersion: bigint,
     mutations: BTreeMutation<TKey, TValue>[],
@@ -30,8 +31,10 @@ export interface SharedTreeStore<TKey, TValue> {
 
 export type ReadMode = 'strong' | 'local';
 
-export interface ConcurrentInMemoryBTreeConfig<TKey, TValue>
-  extends InMemoryBTreeConfig<TKey> {
+export interface ConcurrentInMemoryBTreeConfig<
+  TKey,
+  TValue,
+> extends InMemoryBTreeConfig<TKey> {
   store: SharedTreeStore<TKey, TValue>;
   maxRetries?: number;
   maxSyncMutationsPerBatch?: number;

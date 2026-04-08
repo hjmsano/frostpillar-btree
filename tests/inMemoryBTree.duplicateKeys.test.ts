@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  BTreeValidationError,
-  InMemoryBTree,
-} from '../src/index.js';
+import { BTreeValidationError, InMemoryBTree } from '../src/index.js';
 
 // --- duplicateKeys policy tests ---
 
@@ -17,9 +14,7 @@ void test('duplicateKeys defaults to replace: second insert overwrites', (): voi
   const idB = tree.put(5, 'b');
 
   assert.equal(idB, idA);
-  assert.deepEqual(tree.range(5, 5), [
-    { entryId: idA, key: 5, value: 'b' },
-  ]);
+  assert.deepEqual(tree.range(5, 5), [{ entryId: idA, key: 5, value: 'b' }]);
   assert.equal(tree.size(), 1);
   tree.assertInvariants();
 });
@@ -48,10 +43,9 @@ void test('duplicateKeys reject: throws on duplicate key insert', (): void => {
   });
 
   tree.put(5, 'a');
-  assert.throws(
-    (): void => { tree.put(5, 'b'); },
-    BTreeValidationError,
-  );
+  assert.throws((): void => {
+    tree.put(5, 'b');
+  }, BTreeValidationError);
   assert.equal(tree.size(), 1);
   tree.assertInvariants();
 });
@@ -85,9 +79,7 @@ void test('duplicateKeys reject: allows re-insert after remove', (): void => {
   tree.remove(5);
   const idNew = tree.put(5, 'b');
 
-  assert.deepEqual(tree.snapshot(), [
-    { entryId: idNew, key: 5, value: 'b' },
-  ]);
+  assert.deepEqual(tree.snapshot(), [{ entryId: idNew, key: 5, value: 'b' }]);
   tree.assertInvariants();
 });
 
@@ -119,7 +111,11 @@ void test('duplicateKeys replace: multiple replacements on same key', (): void =
   tree.put(5, 'b');
   tree.put(5, 'c');
 
-  assert.deepEqual(tree.peekById(idOriginal), { entryId: idOriginal, key: 5, value: 'c' });
+  assert.deepEqual(tree.peekById(idOriginal), {
+    entryId: idOriginal,
+    key: 5,
+    value: 'c',
+  });
   assert.equal(tree.size(), 1);
   tree.assertInvariants();
 });
@@ -206,7 +202,11 @@ void test('duplicateKeys allow: insertion order preserved across leaf splits', (
   const result = tree.range(5, 5);
   assert.equal(result.length, 20);
   for (let i = 0; i < 20; i += 1) {
-    assert.equal(result[i].value, expectedOrder[i], `entry ${i} should preserve insertion order`);
+    assert.equal(
+      result[i].value,
+      expectedOrder[i],
+      `entry ${i} should preserve insertion order`,
+    );
   }
 
   // Also verify entries() iterator gives same order

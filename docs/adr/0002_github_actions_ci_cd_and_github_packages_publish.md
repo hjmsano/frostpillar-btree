@@ -13,9 +13,11 @@ The repository targets a TypeScript package and must publish through GitHub Pack
 
 1. Add `ci.yml` to run lint and tests on every `push`.
 2. Add `publish.yml` to run on `push` to `main` and execute:
+
 - dependency install
 - build
 - publish to GitHub Packages
+
 3. Use `GITHUB_TOKEN` with `packages: write` permission for publish authentication.
 4. Set the publish-time package name to `@<owner>/frostpillar-btree` based on the repository owner.
 5. Keep runtime versions aligned with project baseline (Node.js `24.x`, pnpm `10`).

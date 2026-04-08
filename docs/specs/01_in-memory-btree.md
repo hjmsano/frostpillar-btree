@@ -1,7 +1,7 @@
 # Spec: B+ Tree Library Contract
 
 Status: Active
-Version: 2.26
+Version: 2.30
 Last Updated: 2026-04-08
 
 ## 1. Scope
@@ -39,6 +39,7 @@ The package MUST expose named exports for:
 - `type ConcurrentInMemoryBTreeConfig`
 - `type SharedTreeLog`
 - `type SharedTreeStore`
+- `type DeleteRebalancePolicy`
 - `type DuplicateKeyPolicy`
 - `type KeyComparator`
 - `type RangeBounds`
@@ -53,6 +54,7 @@ The package MUST expose a `./core` subpath (`frostpillar-btree/core`) that expor
 - `type BTreeEntry`
 - `type BTreeJSON`
 - `type BTreeStats`
+- `type DeleteRebalancePolicy`
 - `type DuplicateKeyPolicy`
 - `type EntryId`
 - `type InMemoryBTreeConfig`
@@ -97,6 +99,9 @@ Regular mutation/read paths MUST NOT perform eager comparator finiteness validat
 - `autoScale` defaults to `false`.
 - When `autoScale` is `true`, constructor capacity MUST be derived from tier 0 (`maxLeafEntries=32`, `maxBranchChildren=32`) and MAY scale up as `entryCount` grows.
 - `autoScale` MUST NOT be combined with explicit `maxLeafEntries` or `maxBranchChildren`; constructor MUST throw `BTreeValidationError` if both are provided.
+- `deleteRebalancePolicy` defaults to `'standard'`. Valid values are `'standard'` and `'lazy'`. Invalid values MUST throw `BTreeValidationError`.
+- When `'standard'` (default): delete operations trigger rebalancing at the normal `minLeafEntries` threshold.
+- When `'lazy'`: delete operations (both `remove` and `deleteRange`) use a relaxed rebalance threshold of `Math.ceil(minLeafEntries / 4)` (clamped to a minimum of `1`). This reduces merge churn during mass deletion workloads, especially under `autoScale` where the dynamic minimum can be high. The relaxed threshold is used for the leaf rebalance decision only; branch rebalancing continues to use the standard threshold. `assertInvariants()` MUST accept leaves that satisfy the relaxed threshold when `deleteRebalancePolicy` is `'lazy'`.
 
 ### 4.2 Operations
 
@@ -126,6 +131,7 @@ Regular mutation/read paths MUST NOT perform eager comparator finiteness validat
 - `values(): IterableIterator<TValue>`
 - `[Symbol.iterator](): IterableIterator<{ entryId, key, value }>`
 - `forEach(callback, thisArg?): void`
+- `forEachRange(startKey, endKey, callback, options?): void`
 - `snapshot(): Array<{ entryId, key, value }>`
 - `clear(): void`
 - `clone(): InMemoryBTree<TKey, TValue>`
@@ -176,6 +182,9 @@ Regular mutation/read paths MUST NOT perform eager comparator finiteness validat
 - When `duplicateKeys` is `'allow'`, `entriesReversed()` MUST visit equal-key entries in reverse insertion order.
 - Iteration order for equal keys MUST preserve insertion order when `duplicateKeys` is `'allow'`.
 - `forEach` MUST iterate in the same order as `entries()`.
+- `forEachRange(startKey, endKey, callback, options?)` MUST invoke `callback` for each entry in the specified range in ascending comparator order without materializing a result array.
+- `forEachRange` MUST follow the same bound semantics as `range`: inclusive by default, configurable via `RangeBounds`.
+- `forEachRange` MUST be a no-op for empty tree, when `startKey > endKey`, or when both bounds are exclusive and `startKey === endKey`.
 - When the tree is not mutated during traversal, iterators and `forEach` MUST visit each logical entry exactly once.
 - If the caller mutates the tree during iterator/`forEach` traversal, inclusion and visitation order of in-flight traversal are implementation-defined.
 
@@ -295,10 +304,12 @@ Whole-tree invariants:
 - `keys()` — returns `Promise<TKey[]>` (materialized in ascending order within the read lock)
 - `values()` — returns `Promise<TValue[]>` (materialized in ascending order within the read lock)
 - `forEach(cb)` — returns `Promise<void>`; invokes `cb` for each entry in ascending order within the read lock
+- `forEachRange(startKey, endKey, cb, options?)` — returns `Promise<void>`; invokes `cb` for each entry in the specified range in ascending order within the read lock
 - `[Symbol.asyncIterator]()` — async iteration over all entries in ascending order via `entries()`
 - `clone()` — returns `Promise<InMemoryBTree<TKey, TValue>>`; a non-concurrent, independent copy of the current tree state (synced first in `'strong'` mode)
 - `toJSON()` — returns `Promise<BTreeJSON<TKey, TValue>>`
 - `static fromJSON(json, compareKeys)` — static factory; returns a local `InMemoryBTree` without store involvement; delegates to `InMemoryBTree.fromJSON`
+- `syncThenRead<TResult>(fn: (tree: InMemoryBTree) => TResult): Promise<TResult>` — syncs once, then executes `fn` against the local tree within a single exclusive lock; avoids per-read sync overhead for read-heavy batches
 
 with async signatures equivalent to the in-memory API for the listed operation subset.
 
@@ -311,6 +322,7 @@ Iteration methods (`entries`, `entriesReversed`, `keys`, `values`, `forEach`) MU
 `clear` MUST return `Promise<void>`.
 
 The `putMany`, `deleteRange`, and `clear` mutation types MUST be validated during `sync` with the same field-presence checks as other mutation types:
+
 - `putMany` requires `entries` (array of `{ key, value }` objects)
 - `deleteRange` requires `startKey`, `endKey`, and optional `options`
 - `clear` requires no additional fields
@@ -324,9 +336,10 @@ The `putMany`, `deleteRange`, and `clear` mutation types MUST be validated durin
 - Mutation append responses with invalid shape/types (`applied` not boolean or `version` not bigint) MUST throw `BTreeConcurrencyError`.
 - Mutation append responses that violate shared-store version semantics MUST throw `BTreeConcurrencyError`.
 - `readMode` defaults to `'strong'`. Valid values are `'strong'` and `'local'`. Invalid values MUST throw `BTreeConcurrencyError`.
-- When `readMode` is `'strong'` (default): reads MUST `sync` before returning (`peekById`, `peekFirst`, `peekLast`, `findFirst`, `findLast`, `get`, `hasKey`, `range`, `count`, `nextHigherKey`, `nextLowerKey`, `getPairOrNextLower`, `snapshot`, `size`, `getStats`, `assertInvariants`, `entries`, `entriesReversed`, `keys`, `values`, `forEach`, `clone`, `toJSON`).
+- When `readMode` is `'strong'` (default): reads MUST `sync` before returning (`peekById`, `peekFirst`, `peekLast`, `findFirst`, `findLast`, `get`, `hasKey`, `range`, `count`, `nextHigherKey`, `nextLowerKey`, `getPairOrNextLower`, `snapshot`, `size`, `getStats`, `assertInvariants`, `entries`, `entriesReversed`, `keys`, `values`, `forEach`, `forEachRange`, `clone`, `toJSON`).
 - When `readMode` is `'local'`: reads MUST execute against the local in-memory tree without calling `store.getLogEntriesSince()`. Reads still serialize through the operation queue to prevent read/write interleaving on the local tree.
 - In `'local'` mode, callers MUST call `sync()` explicitly to incorporate remote mutations. Between explicit `sync()` calls, reads MAY return stale data.
+- `syncThenRead(fn)` MUST sync once, then invoke `fn` with the underlying `InMemoryBTree` within the same exclusive lock. The callback receives the internal tree as a read-only handle; callers MUST NOT mutate the tree within `fn`. `syncThenRead` MUST work in both `'strong'` and `'local'` read modes (it always syncs regardless of `readMode`).
 - A single instance MUST serialize overlapping async operations regardless of read mode.
 - Unknown mutation payloads from store MUST throw `BTreeConcurrencyError`.
 - During `sync`, the coordinator MUST validate all mutations in the fetched batch before applying any mutation. Validation MUST check both the mutation type and the presence of required fields for each known type (`put` requires `key` and `value`; `remove` requires `key`; `removeById` requires `entryId`; `updateById` requires `entryId` and `value`; `init` requires `configFingerprint`; `putMany` requires `entries`; `deleteRange` requires `startKey` and `endKey`; `clear` requires no additional fields). When an expected config fingerprint is provided, validation MUST also verify that each `init` mutation's `configFingerprint` matches the expected value; a mismatch MUST throw `BTreeConcurrencyError`. If any mutation fails validation, the coordinator MUST throw `BTreeConcurrencyError` without modifying local tree state.
@@ -360,6 +373,7 @@ Expected trends:
 - `count`: `O(log N + K)` where `K` is the number of entries in the range (traversal only, no array allocation)
 - `deleteRange`: `O(K log N)` where `K` is the number of deleted entries (iterative find-and-remove with per-entry rebalance)
 - `range`: `O(log N + K)` where `K` is result size
+- `forEachRange`: `O(log N + K)` where `K` is the number of entries in the range (callback invocation only, no array allocation)
 - `entries` / `entriesReversed` / `keys` / `values` / `[Symbol.iterator]` / `forEach`: `O(N)` traversal, no mandatory full-snapshot allocation
 - `putMany` (empty tree): `O(N)` bulk load
 - `putMany` (non-empty tree): `O(N log L + S log(N + M))` amortized where `M` is the existing tree size, `L` is the leaf capacity, and `S` is the number of leaf splits. For dense batches this approaches `O(N log L)`; for sparse batches it degrades gracefully to `O(N log(N + M))` via scan-budget fallback.
@@ -390,21 +404,23 @@ Repository quality gates:
 
 Internal navigation functions (`findLeafForKey`, `lowerBoundInLeaf`, `upperBoundInLeaf`) MUST accept key components (`userKey`, `sequence`) as separate scalar parameters rather than wrapped `NodeKey` objects. Binary search loops within these functions MUST inline the composite key comparison (user key first, sequence as tiebreaker) to avoid per-step function call overhead. This requirement applies only to hot-path navigation; cold-path code (rebalancing, integrity validation) MAY continue to use `NodeKey` objects where they are stored in branch node key arrays.
 
-Leaf single-element insert (`leafInsertAt`) and remove (`leafRemoveAt`) MUST shift the smaller side of the logical entry array to minimize data movement. When the `entryOffset` gap is available and the insertion point is in the first half, the insert helper MUST shift the left portion left into the gap instead of splicing the right portion. When removing, if the removed index is in the first half, the helper MUST shift the left portion right and increment `entryOffset` (with amortized compaction). Array `splice` remains acceptable for bulk operations (splits, bulk range deletes).
+Leaf single-element insert (`leafInsertAt`) and remove (`leafRemoveAt`) MUST shift the smaller side of the logical entry array to minimize data movement. When the `entryOffset` gap is available and the insertion point is in the first half, the insert helper MUST shift the left portion left into the gap instead of splicing the right portion. When inserting in the second half (or when no gap is available), the insert helper MUST use `push` + `copyWithin` + direct assignment instead of `Array.splice`, avoiding potential V8 backing store reallocation. When removing, if the removed index is in the first half, the helper MUST shift the left portion right and increment `entryOffset` (with amortized compaction). Array `splice` remains acceptable for bulk operations (splits, bulk range deletes).
 
 `countRangeEntries` MUST walk the leaf chain directly without callback indirection, avoiding per-entry function call overhead.
 
 `computeAutoScaleTier` MUST NOT allocate a new object on each call; it MUST return a reference to an existing tier descriptor.
 
-The internal leaf storage type (`LeafEntry`) MUST be structurally identical to the public `BTreeEntry<TKey, TValue>` type (`{ entryId: EntryId; key: TKey; value: TValue }`). Read operations (`peekFirst`, `peekLast`, `findFirst`, `findLast`, `getPairOrNextLower`, `entries`, `entriesReversed`, `range`) MUST return shallow copies via `toPublicEntry` to prevent callers from holding mutable references to internal entries. This ensures that subsequent `updateById` calls do not silently mutate previously returned entry objects.
+The internal leaf storage type (`LeafEntry`) MUST be structurally identical to the public `BTreeEntry<TKey, TValue>` type (`{ entryId: EntryId; key: TKey; value: TValue }`). `updateEntryById` MUST replace the entry object in the leaf array rather than mutating it in place, ensuring that previously returned references remain stable. All public API operations MUST expose entries via `freezeEntry`; callers MUST NOT be able to mutate properties of returned entry objects. `freezeEntry` calls `Object.freeze` (idempotent on already-frozen objects) and casts the type — no new object is allocated. All entry objects exposed through the public API MUST be frozen (`Object.isFrozen(entry) === true`).
 
 `deleteRange` rebalance loops MUST include a safety-guard iteration bound (`minLeafEntries + 4`) to prevent theoretical infinite loops. Normal convergence takes at most `minLeafEntries + 2` iterations; the extra margin accounts for unforeseen edge cases.
 
-`rangeQueryEntries` MUST use a bulk-copy fast-path for non-boundary leaves: when the last entry in a leaf is within the query range, all remaining entries in that leaf MUST be pushed without per-entry comparator calls. For boundary leaves, `rangeQueryEntries` MUST use binary search (`upperBoundInLeaf` / `lowerBoundInLeaf`) to locate the end position instead of linear scan.
+`rangeQueryPublicEntries` MUST use a bulk-copy fast-path for non-boundary leaves: when the last entry in a leaf is within the query range, all remaining entries in that leaf MUST be pushed without per-entry comparator calls. For boundary leaves, `rangeQueryPublicEntries` MUST use binary search (`upperBoundInLeaf` / `lowerBoundInLeaf`) to locate the end position instead of linear scan. `range()` MUST produce public entries (`freezeEntry`) in a single pass during collection, without a separate post-processing `.map()` pass over the result array.
+
+`deleteRangeEntries` MUST use a whole-leaf fast-path for non-boundary leaves: when the last entry in the current leaf is within the deletion range, all entries from the current index to the end of the leaf MUST be removed without per-entry comparator calls. For boundary leaves (where the range ends mid-leaf), `deleteRangeEntries` MUST use binary search (`upperBoundInLeaf` / `lowerBoundInLeaf`) to locate the end position instead of linear scan.
 
 `bulkLoadEntries` MUST build leaf entry chunks in a single pass without creating a flat intermediate array. The implementation MUST NOT allocate a temporary array of all leaf entries and then slice it into chunks.
 
-`snapshot()`, `walkLeafEntries`, `fromJSON` pair construction, and `putMany` id collection MUST pre-allocate result arrays from known sizes (`state.entryCount`, `json.entries.length`, `entries.length`) instead of growing via `push()`.
+`snapshot()` (`snapshotEntries`), `fromJSON` pair construction, and `putMany` id collection MUST pre-allocate result arrays from known sizes (`state.entryCount`, `json.entries.length`, `entries.length`) instead of growing via `push()`.
 
 `clone()` MUST traverse the source tree's leaf chain directly and feed entries into bulk load without allocating intermediate `{ key, value }` wrapper objects per entry.
 

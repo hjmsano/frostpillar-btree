@@ -157,9 +157,7 @@ void test('putMany failure does not corrupt replay for other instances', async (
   await writer.put(5, 'five');
 
   await assert.rejects(
-    writer.putMany([
-      { key: 5, value: 'five-dup' },
-    ]),
+    writer.putMany([{ key: 5, value: 'five-dup' }]),
     (error: Error) => error.message.includes('Duplicate key rejected'),
   );
 
@@ -209,7 +207,10 @@ void test('deleteRange with exclusive bounds follows RangeBounds semantics', asy
   const tree = makeTree(store);
   await seedTree(tree);
 
-  const deleted = await tree.deleteRange(20, 40, { lowerBound: 'exclusive', upperBound: 'exclusive' });
+  const deleted = await tree.deleteRange(20, 40, {
+    lowerBound: 'exclusive',
+    upperBound: 'exclusive',
+  });
   assert.equal(deleted, 1);
   assert.equal(await tree.size(), 4);
   assert.deepEqual(

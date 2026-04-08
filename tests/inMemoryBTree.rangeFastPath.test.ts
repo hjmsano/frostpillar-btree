@@ -38,7 +38,10 @@ void test('range with exclusive bounds spanning multiple leaves', (): void => {
     tree.put(i, `v${i}`);
   }
 
-  const result = tree.range(3, 17, { lowerBound: 'exclusive', upperBound: 'exclusive' });
+  const result = tree.range(3, 17, {
+    lowerBound: 'exclusive',
+    upperBound: 'exclusive',
+  });
   assert.equal(result.length, 13);
   assert.equal(result[0].key, 4);
   assert.equal(result[12].key, 16);

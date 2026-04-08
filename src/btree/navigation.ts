@@ -28,7 +28,15 @@ const selectBranchChild = <TKey, TValue>(
     const mid = (lower + upper) >>> 1;
     const k = branch.keys[mid];
     const cmp = compare(k.key, userKey);
-    if ((cmp !== 0 ? cmp : k.sequence < sequence ? -1 : k.sequence > sequence ? 1 : 0) <= 0) {
+    if (
+      (cmp !== 0
+        ? cmp
+        : k.sequence < sequence
+          ? -1
+          : k.sequence > sequence
+            ? 1
+            : 0) <= 0
+    ) {
       selectedIndex = mid;
       lower = mid + 1;
     } else {
@@ -67,7 +75,15 @@ export const lowerBoundInLeaf = <TKey, TValue>(
     const mid = (lower + upper) >>> 1;
     const e = leaf.entries[mid];
     const cmp = compare(e.key, userKey);
-    if ((cmp !== 0 ? cmp : e.entryId < sequence ? -1 : e.entryId > sequence ? 1 : 0) < 0) {
+    if (
+      (cmp !== 0
+        ? cmp
+        : e.entryId < sequence
+          ? -1
+          : e.entryId > sequence
+            ? 1
+            : 0) < 0
+    ) {
       lower = mid + 1;
     } else {
       upper = mid;
@@ -91,7 +107,15 @@ export const upperBoundInLeaf = <TKey, TValue>(
     const mid = (lower + upper) >>> 1;
     const e = leaf.entries[mid];
     const cmp = compare(e.key, userKey);
-    if ((cmp !== 0 ? cmp : e.entryId < sequence ? -1 : e.entryId > sequence ? 1 : 0) <= 0) {
+    if (
+      (cmp !== 0
+        ? cmp
+        : e.entryId < sequence
+          ? -1
+          : e.entryId > sequence
+            ? 1
+            : 0) <= 0
+    ) {
       lower = mid + 1;
     } else {
       upper = mid;
@@ -188,7 +212,11 @@ export const findNextHigherKey = <TKey, TValue>(
 
   const compare = state.compareKeys;
   // Upper bound with max sequence lands past all equal-key entries
-  let leaf: LeafNode<TKey, TValue> | null = findLeafForKey(state, key, Number.MAX_SAFE_INTEGER);
+  let leaf: LeafNode<TKey, TValue> | null = findLeafForKey(
+    state,
+    key,
+    Number.MAX_SAFE_INTEGER,
+  );
   let idx = upperBoundInLeaf(state, leaf, key, Number.MAX_SAFE_INTEGER);
 
   // Scan forward until we find an entry strictly greater than key
@@ -257,7 +285,10 @@ export const findPairOrNextLower = <TKey, TValue>(
   } else if (leaf.next !== null) {
     // Lower bound may have landed past this leaf
     const nextIdx = lowerBoundInLeaf(state, leaf.next, key, 0);
-    if (nextIdx < leafEntryCount(leaf.next) && compare(leafEntryAt(leaf.next, nextIdx).key, key) === 0) {
+    if (
+      nextIdx < leafEntryCount(leaf.next) &&
+      compare(leafEntryAt(leaf.next, nextIdx).key, key) === 0
+    ) {
       cursor.leaf = leaf.next;
       cursor.index = nextIdx;
       return cursor;
@@ -282,4 +313,3 @@ export const findPairOrNextLower = <TKey, TValue>(
 
   return null;
 };
-

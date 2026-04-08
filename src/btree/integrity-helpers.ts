@@ -6,6 +6,7 @@ import {
   type BTreeNode,
   type BTreeState,
   type KeyComparator,
+  type LeafNode,
   type NodeKey,
 } from './types.js';
 
@@ -19,7 +20,10 @@ export const nodeMinKey = <TKey, TValue>(
   }
 
   if (node.childOffset >= node.keys.length) return null;
-  return { key: node.keys[node.childOffset].key, sequence: node.keys[node.childOffset].sequence };
+  return {
+    key: node.keys[node.childOffset].key,
+    sequence: node.keys[node.childOffset].sequence,
+  };
 };
 
 export const compareNodeKeys = <TKey>(
@@ -54,9 +58,7 @@ const getNodeMaxKey = <TKey, TValue>(
 
 const validateComparatorResult = (result: number): number => {
   if (!Number.isFinite(result)) {
-    throw new BTreeValidationError(
-      'compareKeys must return a finite number.',
-    );
+    throw new BTreeValidationError('compareKeys must return a finite number.');
   }
   return result;
 };
@@ -139,6 +141,46 @@ export const assertTransitivityAsInvariant = <TKey, TValue>(
   }
 };
 
+const validateAdjacentLeafOrdering = <TKey, TValue>(
+  state: BTreeState<TKey, TValue>,
+  previous: LeafNode<TKey, TValue>,
+  cursor: LeafNode<TKey, TValue>,
+): void => {
+  const prevMax = getNodeMaxKey(previous);
+  const currentMin = nodeMinKey(cursor);
+  if (prevMax === null || currentMin === null) {
+    throw new BTreeInvariantError(
+      'Non-empty tree leaf chain contains empty leaf node.',
+    );
+  }
+  if (
+    compareNodeKeys(
+      state.compareKeys,
+      prevMax.key,
+      prevMax.sequence,
+      currentMin.key,
+      currentMin.sequence,
+    ) > 0
+  ) {
+    throw new BTreeInvariantError('Adjacent leaf key ranges are out of order.');
+  }
+  const prevCount = leafEntryCount(previous);
+  const curCount = leafEntryCount(cursor);
+  if (
+    state.duplicateKeys !== 'allow' &&
+    prevCount > 0 &&
+    curCount > 0 &&
+    state.compareKeys(
+      leafEntryAt(previous, prevCount - 1).key,
+      leafEntryAt(cursor, 0).key,
+    ) === 0
+  ) {
+    throw new BTreeInvariantError(
+      'Duplicate user key detected across adjacent leaves with uniqueness policy.',
+    );
+  }
+};
+
 const validateLeafChainStep = <TKey, TValue>(
   state: BTreeState<TKey, TValue>,
   cursor: BTreeNode<TKey, TValue>,
@@ -156,27 +198,7 @@ const validateLeafChainStep = <TKey, TValue>(
   }
 
   if (previous !== null && isLeafNode(previous)) {
-    const prevMax = getNodeMaxKey(previous);
-    const currentMin = nodeMinKey(cursor);
-    if (prevMax === null || currentMin === null) {
-      throw new BTreeInvariantError('Non-empty tree leaf chain contains empty leaf node.');
-    }
-    if (compareNodeKeys(state.compareKeys, prevMax.key, prevMax.sequence, currentMin.key, currentMin.sequence) > 0) {
-      throw new BTreeInvariantError('Adjacent leaf key ranges are out of order.');
-    }
-    const prevCount = leafEntryCount(previous);
-    const curCount = leafEntryCount(cursor);
-    if (
-      state.duplicateKeys !== 'allow'
-      && prevCount > 0
-      && curCount > 0
-      && state.compareKeys(
-        leafEntryAt(previous, prevCount - 1).key,
-        leafEntryAt(cursor, 0).key,
-      ) === 0
-    ) {
-      throw new BTreeInvariantError('Duplicate user key detected across adjacent leaves with uniqueness policy.');
-    }
+    validateAdjacentLeafOrdering(state, previous, cursor);
   }
 };
 
@@ -192,7 +214,9 @@ export const validateLeafLinks = <TKey, TValue>(
       state.leftmostLeaf !== state.root ||
       state.rightmostLeaf !== state.root
     ) {
-      throw new BTreeInvariantError('Empty tree leaf pointers must reference root leaf.');
+      throw new BTreeInvariantError(
+        'Empty tree leaf pointers must reference root leaf.',
+      );
     }
     return;
   }
@@ -221,6 +245,8 @@ export const validateLeafLinks = <TKey, TValue>(
     throw new BTreeInvariantError('Rightmost leaf pointer mismatch.');
   }
   if (leafCount !== expectedLeafCount) {
-    throw new BTreeInvariantError('Leaf chain count mismatch with tree traversal count.');
+    throw new BTreeInvariantError(
+      'Leaf chain count mismatch with tree traversal count.',
+    );
   }
 };

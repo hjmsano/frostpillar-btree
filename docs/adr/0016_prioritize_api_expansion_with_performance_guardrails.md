@@ -25,12 +25,12 @@ Prioritize by this rule:
 
 ### Priority tiers
 
-| Tier | Features | Expected perf impact | Decision |
-| --- | --- | --- | --- |
-| P0 | `get(key)`, `peekLast()`, `popLast()`, `clear()`, iterators (`Symbol.iterator`, `entries()`, `keys()`, `values()`), `forEach()` | Mostly neutral or positive (less array allocation than `snapshot`/`range`) | Do first |
-| P1 | reverse iteration (`entriesReversed()`), half-open/exclusive bounds for range, `count(lo, hi)`, key navigation (`nextHigherKey`, `nextLowerKey`, `getPairOrNextLower`), `deleteRange(lo, hi)` | Moderate risk if implemented with extra scans/rebalance loops | Do second with benchmark checks |
-| P2 | sorted fast path (`putMany`/`bulkLoad`), `clone()`, serialization (`toJSON`/`fromJSON`) | Potentially high code size and maintenance cost; perf upside depends on workload | Do third after P0/P1 stabilize |
-| Deferred | `toArray`/`keysArray`/`valuesArray`, `map/filter/reduce`, full ES6 `Map` compatibility, immutable API (`with`/`without`), set ops, rank queries, `freeze`/`unfreeze` | Mostly convenience or significant structural lift | Re-evaluate later |
+| Tier     | Features                                                                                                                                                                                      | Expected perf impact                                                             | Decision                        |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------- |
+| P0       | `get(key)`, `peekLast()`, `popLast()`, `clear()`, iterators (`Symbol.iterator`, `entries()`, `keys()`, `values()`), `forEach()`                                                               | Mostly neutral or positive (less array allocation than `snapshot`/`range`)       | Do first                        |
+| P1       | reverse iteration (`entriesReversed()`), half-open/exclusive bounds for range, `count(lo, hi)`, key navigation (`nextHigherKey`, `nextLowerKey`, `getPairOrNextLower`), `deleteRange(lo, hi)` | Moderate risk if implemented with extra scans/rebalance loops                    | Do second with benchmark checks |
+| P2       | sorted fast path (`putMany`/`bulkLoad`), `clone()`, serialization (`toJSON`/`fromJSON`)                                                                                                       | Potentially high code size and maintenance cost; perf upside depends on workload | Do third after P0/P1 stabilize  |
+| Deferred | `toArray`/`keysArray`/`valuesArray`, `map/filter/reduce`, full ES6 `Map` compatibility, immutable API (`with`/`without`), set ops, rank queries, `freeze`/`unfreeze`                          | Mostly convenience or significant structural lift                                | Re-evaluate later               |
 
 ### Notes on specific tradeoffs
 
@@ -72,20 +72,20 @@ All items follow the repository contract: spec update -> failing tests -> implem
 9. **WI-09: Add key navigation primitives**
    - Add floor/ceiling-style helpers (`nextHigherKey`, `nextLowerKey`, `getPairOrNextLower`).
    - Add tests for no-hit, exact-hit, and duplicate-key behavior.
-10. **WI-10: Evaluate and add sorted bulk insert** *(done)*
+10. **WI-10: Evaluate and add sorted bulk insert** _(done)_
     - Added `putMany(entries)` accepting pre-sorted `readonly { key, value }[]`.
     - Unsorted input throws `BTreeValidationError` (no hidden sort fallback).
     - Empty tree + `duplicateKeys: 'allow'`: O(N) bottom-up bulk load via `bulkLoad.ts`.
     - Non-empty tree or `reject`/`replace` policy: sequential `put` calls.
     - Benchmark shows bulk load ~2.7x faster than repeated `put` at 65K entries.
     - Spec v2.14, 27 new tests, benchmark entries `put-many-empty` / `put-many-pop`.
-11. **WI-11: Add `clone` and serialization** *(done)*
+11. **WI-11: Add `clone` and serialization** _(done)_
     - Added `clone()` returning a structurally independent deep copy via `putMany` rebuild.
     - Added `toJSON()` producing a versioned `BTreeJSON` payload (version 1) with config metadata and `[key, value]` tuple entries.
     - Added static `fromJSON(json, compareKeys)` factory that validates version, reconstructs config, and rebuilds via `putMany`.
     - Serialization helpers extracted to `src/btree/serialization.ts` for separation of concerns.
     - Spec v2.15, 19 new tests covering clone independence, policy preservation, round-trip through `JSON.stringify/parse`, and error handling.
-12. **WI-12: Deferred backlog checkpoint** *(done)*
+12. **WI-12: Deferred backlog checkpoint** _(done)_
     - Reassessed all deferred items after P0-P2 shipped and benchmarked.
     - All items remain deferred: none meet promotion criteria (clear user demand + acceptable complexity/runtime impact).
     - Decision recorded in ADR 0017.

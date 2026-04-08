@@ -6,6 +6,7 @@ import {
   MAX_NODE_CAPACITY,
   MIN_NODE_CAPACITY,
   type BTreeState,
+  type DeleteRebalancePolicy,
   type DuplicateKeyPolicy,
   type InMemoryBTreeConfig,
   type KeyComparator,
@@ -20,6 +21,7 @@ export interface BTreeJSON<TKey, TValue> {
     duplicateKeys: DuplicateKeyPolicy;
     enableEntryIdLookup: boolean;
     autoScale: boolean;
+    deleteRebalancePolicy?: DeleteRebalancePolicy;
   };
   entries: [TKey, TValue][];
 }
@@ -32,6 +34,7 @@ export const buildConfigFromState = <TKey, TValue>(
     duplicateKeys: state.duplicateKeys,
     enableEntryIdLookup: state.entryKeys !== null,
     autoScale: state.autoScale,
+    deleteRebalancePolicy: state.deleteRebalancePolicy,
   };
   if (!state.autoScale) {
     config.maxLeafEntries = state.maxLeafEntries;
@@ -54,17 +57,17 @@ export const serializeToJSON = <TKey, TValue>(
     }
     leaf = leaf.next;
   }
-  return {
-    version: 1,
-    config: {
-      maxLeafEntries: state.maxLeafEntries,
-      maxBranchChildren: state.maxBranchChildren,
-      duplicateKeys: state.duplicateKeys,
-      enableEntryIdLookup: state.entryKeys !== null,
-      autoScale: state.autoScale,
-    },
-    entries,
+  const config: BTreeJSON<TKey, TValue>['config'] = {
+    maxLeafEntries: state.maxLeafEntries,
+    maxBranchChildren: state.maxBranchChildren,
+    duplicateKeys: state.duplicateKeys,
+    enableEntryIdLookup: state.entryKeys !== null,
+    autoScale: state.autoScale,
   };
+  if (state.deleteRebalancePolicy !== 'standard') {
+    config.deleteRebalancePolicy = state.deleteRebalancePolicy;
+  }
+  return { version: 1, config, entries };
 };
 
 const MAX_SERIALIZED_ENTRIES = 1_000_000;
@@ -97,13 +100,24 @@ const validateStructure = <TKey, TValue>(
 const validateConfig = <TKey, TValue>(
   cfg: BTreeJSON<TKey, TValue>['config'],
 ): void => {
-  const validateCapacity = (field: 'maxLeafEntries' | 'maxBranchChildren', value: number): void => {
-    if (!Number.isInteger(value) || value < MIN_NODE_CAPACITY || value > MAX_NODE_CAPACITY) {
+  const validateCapacity = (
+    field: 'maxLeafEntries' | 'maxBranchChildren',
+    value: number,
+  ): void => {
+    if (
+      !Number.isInteger(value) ||
+      value < MIN_NODE_CAPACITY ||
+      value > MAX_NODE_CAPACITY
+    ) {
       throw new BTreeValidationError(`BTreeJSON: invalid ${field}.`);
     }
   };
 
-  if (cfg.duplicateKeys !== 'allow' && cfg.duplicateKeys !== 'reject' && cfg.duplicateKeys !== 'replace') {
+  if (
+    cfg.duplicateKeys !== 'allow' &&
+    cfg.duplicateKeys !== 'reject' &&
+    cfg.duplicateKeys !== 'replace'
+  ) {
     throw new BTreeValidationError(
       `BTreeJSON: invalid duplicateKeys: ${String(cfg.duplicateKeys)}.`,
     );
@@ -127,7 +141,10 @@ const validateConfig = <TKey, TValue>(
 
   if (cfg.autoScale) {
     const tier0 = computeAutoScaleTier(0);
-    if (cfg.maxLeafEntries < tier0.maxLeaf || cfg.maxBranchChildren < tier0.maxBranch) {
+    if (
+      cfg.maxLeafEntries < tier0.maxLeaf ||
+      cfg.maxBranchChildren < tier0.maxBranch
+    ) {
       throw new BTreeValidationError(
         'BTreeJSON: autoScale capacity below tier-0.',
       );
@@ -142,6 +159,24 @@ export const validateBTreeJSON = <TKey, TValue>(
   validateConfig(json.config);
 };
 
+export const validateBTreeJSONSortOrder = <TKey, TValue>(
+  json: BTreeJSON<TKey, TValue>,
+  compareKeys: KeyComparator<TKey>,
+): void => {
+  const strict = json.config.duplicateKeys !== 'allow';
+  for (let i = 1; i < json.entries.length; i += 1) {
+    const cmp = compareKeys(json.entries[i - 1][0], json.entries[i][0]);
+    if (cmp > 0) {
+      throw new BTreeValidationError('fromJSON: entries not sorted.');
+    }
+    if (strict && cmp === 0) {
+      throw new BTreeValidationError(
+        'fromJSON: duplicate keys require duplicateKeys "allow".',
+      );
+    }
+  }
+};
+
 export const buildConfigFromJSON = <TKey>(
   json: BTreeJSON<TKey, unknown>,
   compareKeys: KeyComparator<TKey>,
@@ -152,6 +187,7 @@ export const buildConfigFromJSON = <TKey>(
     duplicateKeys: cfg.duplicateKeys,
     enableEntryIdLookup: cfg.enableEntryIdLookup,
     autoScale: cfg.autoScale,
+    deleteRebalancePolicy: cfg.deleteRebalancePolicy,
   };
   if (!cfg.autoScale) {
     config.maxLeafEntries = cfg.maxLeafEntries;

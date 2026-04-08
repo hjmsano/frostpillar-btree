@@ -804,6 +804,146 @@ const benchmarkConcurrentGet = async (size, insertionOrder) => {
   };
 };
 
+const benchmarkConcurrentGetLocal = async (size, insertionOrder) => {
+  if (concurrentBTreeClass === null) {
+    return null;
+  }
+
+  const queries = Math.max(MIN_GET_POINT_QUERIES, size * 8);
+  const pointOrder = createShuffledSequence(size, 0xbe34d1 + size);
+
+  const prepareTree = async () => {
+    const store = createInProcessStore();
+    const tree = new concurrentBTreeClass({
+      compareKeys: compareNumbers,
+      store,
+      readMode: 'local',
+    });
+    for (const key of insertionOrder) {
+      await tree.put(key, key);
+    }
+    return tree;
+  };
+
+  for (let round = 0; round < WARMUP_ROUNDS; round += 1) {
+    const tree = await prepareTree();
+    await tree.sync();
+    let checksum = 0;
+    for (let index = 0; index < queries; index += 1) {
+      const point = pointOrder[index % pointOrder.length];
+      const value = await tree.get(point);
+      if (value === null) {
+        throw new Error(
+          'concurrent get-local benchmark requires key presence.',
+        );
+      }
+      checksum ^= value;
+    }
+    sideEffectSink ^= checksum;
+  }
+
+  const elapsedByRound = [];
+  for (let round = 0; round < MEASURE_ROUNDS; round += 1) {
+    const tree = await prepareTree();
+    await tree.sync();
+    let checksum = 0;
+    const start = nowNanoseconds();
+    for (let index = 0; index < queries; index += 1) {
+      const point = pointOrder[index % pointOrder.length];
+      const value = await tree.get(point);
+      if (value === null) {
+        throw new Error(
+          'concurrent get-local benchmark requires key presence.',
+        );
+      }
+      checksum ^= value;
+    }
+    const end = nowNanoseconds();
+    sideEffectSink ^= checksum;
+    elapsedByRound.push(Number(end - start));
+  }
+
+  const elapsedNs = median(elapsedByRound);
+  return {
+    elapsedNs,
+    operationCount: queries,
+  };
+};
+
+const benchmarkConcurrentSyncThenRead = async (size, insertionOrder) => {
+  if (concurrentBTreeClass === null) {
+    return null;
+  }
+
+  const queries = Math.max(MIN_GET_POINT_QUERIES, size * 8);
+  const pointOrder = createShuffledSequence(size, 0xcf45e2 + size);
+  const batchSize = 100;
+
+  const prepareTree = async () => {
+    const store = createInProcessStore();
+    const tree = new concurrentBTreeClass({
+      compareKeys: compareNumbers,
+      store,
+    });
+    for (const key of insertionOrder) {
+      await tree.put(key, key);
+    }
+    return tree;
+  };
+
+  for (let round = 0; round < WARMUP_ROUNDS; round += 1) {
+    const tree = await prepareTree();
+    let checksum = 0;
+    for (let index = 0; index < queries; index += batchSize) {
+      checksum ^= await tree.syncThenRead((t) => {
+        let cs = 0;
+        const end = Math.min(index + batchSize, queries);
+        for (let j = index; j < end; j += 1) {
+          const point = pointOrder[j % pointOrder.length];
+          const value = t.get(point);
+          if (value === null) {
+            throw new Error('syncThenRead benchmark requires key presence.');
+          }
+          cs ^= value;
+        }
+        return cs;
+      });
+    }
+    sideEffectSink ^= checksum;
+  }
+
+  const elapsedByRound = [];
+  for (let round = 0; round < MEASURE_ROUNDS; round += 1) {
+    const tree = await prepareTree();
+    let checksum = 0;
+    const start = nowNanoseconds();
+    for (let index = 0; index < queries; index += batchSize) {
+      checksum ^= await tree.syncThenRead((t) => {
+        let cs = 0;
+        const end = Math.min(index + batchSize, queries);
+        for (let j = index; j < end; j += 1) {
+          const point = pointOrder[j % pointOrder.length];
+          const value = t.get(point);
+          if (value === null) {
+            throw new Error('syncThenRead benchmark requires key presence.');
+          }
+          cs ^= value;
+        }
+        return cs;
+      });
+    }
+    const end = nowNanoseconds();
+    sideEffectSink ^= checksum;
+    elapsedByRound.push(Number(end - start));
+  }
+
+  const elapsedNs = median(elapsedByRound);
+  return {
+    elapsedNs,
+    operationCount: queries,
+  };
+};
+
 // ---------------------------------------------------------------------------
 // Output formatting
 // ---------------------------------------------------------------------------
@@ -1159,12 +1299,22 @@ const runDefaultBenchmarks = () => {
   return rows;
 };
 
-const VARIANT_CORE_OPS = ['put', 'remove', 'exists-point', 'select-point'];
+const VARIANT_CORE_OPS = [
+  'put',
+  'remove',
+  'exists-point',
+  'select-point',
+  'delete-range',
+];
 
 const runVariantBenchmarks = () => {
   const configs = [
     { label: 'dup-allow', overrides: { duplicateKeys: 'allow' } },
     { label: 'auto-scale', overrides: { autoScale: true } },
+    {
+      label: 'as-lazy',
+      overrides: { autoScale: true, deleteRebalancePolicy: 'lazy' },
+    },
   ];
 
   const rows = [];
@@ -1237,6 +1387,23 @@ const runVariantBenchmarks = () => {
           selectResult.operationCount /
           Math.log2(size),
       });
+
+      const deleteRangeResult = benchmarkDeleteRange(
+        size,
+        insertionOrder,
+        overrides,
+      );
+      rows.push({
+        config: label,
+        operation: 'delete-range',
+        size,
+        elapsedNs: deleteRangeResult.elapsedNs,
+        operationCount: deleteRangeResult.operationCount,
+        normalized:
+          deleteRangeResult.elapsedNs /
+          deleteRangeResult.operationCount /
+          Math.log2(size),
+      });
     }
   }
 
@@ -1253,6 +1420,14 @@ const runConcurrentBenchmarks = async () => {
 
   const insertResult = await benchmarkConcurrentInsert(size, insertionOrder);
   const getResult = await benchmarkConcurrentGet(size, insertionOrder);
+  const getLocalResult = await benchmarkConcurrentGetLocal(
+    size,
+    insertionOrder,
+  );
+  const syncThenReadResult = await benchmarkConcurrentSyncThenRead(
+    size,
+    insertionOrder,
+  );
 
   const rows = [];
   if (insertResult !== null) {
@@ -1273,6 +1448,30 @@ const runConcurrentBenchmarks = async () => {
       operationCount: getResult.operationCount,
       normalized:
         getResult.elapsedNs / getResult.operationCount / Math.log2(size),
+    });
+  }
+  if (getLocalResult !== null) {
+    rows.push({
+      operation: 'get-local',
+      size,
+      elapsedNs: getLocalResult.elapsedNs,
+      operationCount: getLocalResult.operationCount,
+      normalized:
+        getLocalResult.elapsedNs /
+        getLocalResult.operationCount /
+        Math.log2(size),
+    });
+  }
+  if (syncThenReadResult !== null) {
+    rows.push({
+      operation: 'syncThenRead',
+      size,
+      elapsedNs: syncThenReadResult.elapsedNs,
+      operationCount: syncThenReadResult.operationCount,
+      normalized:
+        syncThenReadResult.elapsedNs /
+        syncThenReadResult.operationCount /
+        Math.log2(size),
     });
   }
 

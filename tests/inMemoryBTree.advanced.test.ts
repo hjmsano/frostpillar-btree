@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  type EntryId,
-  InMemoryBTree,
-} from '../src/index.js';
+import { type EntryId, InMemoryBTree } from '../src/index.js';
 
 void test('remove on single-entry tree yields empty tree with valid state', (): void => {
   const tree = new InMemoryBTree<number, string>({
@@ -80,7 +77,11 @@ void test('remove then re-insert same key works correctly', (): void => {
   const id2 = tree.put(5, 'second');
   assert.notEqual(id1, id2);
   assert.equal(tree.get(5), 'second');
-  assert.deepEqual(tree.peekById(id2), { entryId: id2, key: 5, value: 'second' });
+  assert.deepEqual(tree.peekById(id2), {
+    entryId: id2,
+    key: 5,
+    value: 'second',
+  });
   tree.assertInvariants();
 });
 
@@ -106,7 +107,10 @@ void test('negative keys are ordered correctly', (): void => {
 
   assert.equal(tree.get(-10), 'neg10');
   assert.equal(tree.get(0), 'zero');
-  assert.deepEqual(tree.range(-10, 0).map((e) => e.key), [-10, -5, 0]);
+  assert.deepEqual(
+    tree.range(-10, 0).map((e) => e.key),
+    [-10, -5, 0],
+  );
   tree.assertInvariants();
 });
 
@@ -125,7 +129,10 @@ void test('float keys are ordered correctly', (): void => {
 
   const keys = [...tree.keys()];
   for (let i = 1; i < keys.length; i += 1) {
-    assert.ok(keys[i - 1] < keys[i], `float key order violation: ${keys[i - 1]} >= ${keys[i]}`);
+    assert.ok(
+      keys[i - 1] < keys[i],
+      `float key order violation: ${keys[i - 1]} >= ${keys[i]}`,
+    );
   }
   assert.equal(tree.size(), 5);
   tree.assertInvariants();
@@ -215,7 +222,10 @@ void test('mixed negative and positive keys with range, delete, and navigation',
 
   // Range across zero
   const rangeAcrossZero = tree.range(-2, 2);
-  assert.deepEqual(rangeAcrossZero.map((e) => e.key), [-2, -1, 0, 1, 2]);
+  assert.deepEqual(
+    rangeAcrossZero.map((e) => e.key),
+    [-2, -1, 0, 1, 2],
+  );
 
   // Delete negative range
   assert.equal(tree.deleteRange(-15, -10), 6);
@@ -255,7 +265,10 @@ void test('leafInsertAt first-half gap-fill: popFirst then insert into leftmost 
   tree.put(0, 'v0');
 
   assert.equal(tree.size(), 4);
-  assert.deepEqual(tree.snapshot().map((e) => e.key), [0, 2, 3, 4]);
+  assert.deepEqual(
+    tree.snapshot().map((e) => e.key),
+    [0, 2, 3, 4],
+  );
   tree.assertInvariants();
 });
 
@@ -284,6 +297,9 @@ void test('leafCompact triggered during split: popFirst then overflow the same l
   tree.put(6, 'v6');
 
   assert.equal(tree.size(), 5);
-  assert.deepEqual(tree.snapshot().map((e) => e.key), [2, 3, 4, 5, 6]);
+  assert.deepEqual(
+    tree.snapshot().map((e) => e.key),
+    [2, 3, 4, 5, 6],
+  );
   tree.assertInvariants();
 });

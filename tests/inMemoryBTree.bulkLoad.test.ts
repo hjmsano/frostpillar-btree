@@ -12,17 +12,32 @@ void test('bulkLoadEntries guard fires before state mutation on non-empty tree',
   });
   tree.put(1, 'a');
 
-  const state = (tree as unknown as { state: BTreeState<number, string> }).state;
+  const state = (tree as unknown as { state: BTreeState<number, string> })
+    .state;
   const seqBefore = state.nextSequence;
   const keysBefore = state.entryKeys!.size;
 
   assert.throws(
-    () => bulkLoadEntries(state, [{ key: 10, value: 'x' }, { key: 20, value: 'y' }]),
-    (error: Error) => error instanceof BTreeInvariantError && error.message.includes('empty tree'),
+    () =>
+      bulkLoadEntries(state, [
+        { key: 10, value: 'x' },
+        { key: 20, value: 'y' },
+      ]),
+    (error: Error) =>
+      error instanceof BTreeInvariantError &&
+      error.message.includes('empty tree'),
   );
 
-  assert.equal(state.nextSequence, seqBefore, 'nextSequence must not be mutated');
-  assert.equal(state.entryKeys!.size, keysBefore, 'entryKeys must not be mutated');
+  assert.equal(
+    state.nextSequence,
+    seqBefore,
+    'nextSequence must not be mutated',
+  );
+  assert.equal(
+    state.entryKeys!.size,
+    keysBefore,
+    'entryKeys must not be mutated',
+  );
 });
 
 void test('tree remains usable after bulkLoadEntries guard failure', (): void => {
@@ -32,7 +47,8 @@ void test('tree remains usable after bulkLoadEntries guard failure', (): void =>
   });
   tree.put(1, 'a');
 
-  const state = (tree as unknown as { state: BTreeState<number, string> }).state;
+  const state = (tree as unknown as { state: BTreeState<number, string> })
+    .state;
   assert.throws(
     () => bulkLoadEntries(state, [{ key: 10, value: 'x' }]),
     (error: Error) => error instanceof BTreeInvariantError,

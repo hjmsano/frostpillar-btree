@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  BTreeValidationError,
-  InMemoryBTree,
-} from '../src/index.js';
+import { BTreeValidationError, InMemoryBTree } from '../src/index.js';
 import { computeAutoScaleTier } from '../src/btree/autoScale.js';
 
 void test('autoScale starts at tier 0 with maxLeaf=32', (): void => {
@@ -107,7 +104,11 @@ void test('autoScale large scale test with 10000+ entries', (): void => {
 });
 
 void test('computeAutoScaleTier returns correct tiers', (): void => {
-  const assertTier = (entryCount: number, expectedLeaf: number, expectedBranch: number): void => {
+  const assertTier = (
+    entryCount: number,
+    expectedLeaf: number,
+    expectedBranch: number,
+  ): void => {
     const tier = computeAutoScaleTier(entryCount);
     assert.equal(tier.maxLeaf, expectedLeaf);
     assert.equal(tier.maxBranch, expectedBranch);

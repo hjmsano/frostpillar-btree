@@ -12,7 +12,7 @@ import {
   IncompatibleReplayStore,
   PartialBadBatchStore,
   UnknownMutationStore,
-} from './helpers/sharedTreeStoreStubs.js';
+} from './helpers/specializedStoreStubs.js';
 
 void test('rejects unknown mutation types from shared store', async (): Promise<void> => {
   const tree = new ConcurrentInMemoryBTree<number, string>({
@@ -35,8 +35,12 @@ void test('sync does not partially apply mutations when batch contains unknown t
     await tree.sync();
   }, BTreeConcurrencyError);
 
-  // eslint-disable-next-line @typescript-eslint/dot-notation -- testing internal state after error
-  assert.equal(tree['tree'].size(), 0);
+  assert.equal(
+    (
+      tree as unknown as { coord: { tree: { size: () => number } } }
+    ).coord.tree.size(),
+    0,
+  );
 });
 
 void test('rejects put mutation missing key field', async (): Promise<void> => {
@@ -50,8 +54,12 @@ void test('rejects put mutation missing key field', async (): Promise<void> => {
   await assert.rejects(async (): Promise<void> => {
     await tree.sync();
   }, BTreeConcurrencyError);
-  // eslint-disable-next-line @typescript-eslint/dot-notation -- testing internal state after error
-  assert.equal(tree['tree'].size(), 0);
+  assert.equal(
+    (
+      tree as unknown as { coord: { tree: { size: () => number } } }
+    ).coord.tree.size(),
+    0,
+  );
 });
 
 void test('rejects removeById mutation missing entryId field', async (): Promise<void> => {
@@ -71,7 +79,10 @@ void test('rejects updateById mutation missing value field', async (): Promise<v
   const tree = new ConcurrentInMemoryBTree<number, string>({
     compareKeys: (left: number, right: number): number => left - right,
     store: new CustomMutationStore([
-      { type: 'updateById', entryId: 0 } as unknown as BTreeMutation<number, string>,
+      { type: 'updateById', entryId: 0 } as unknown as BTreeMutation<
+        number,
+        string
+      >,
     ]),
   });
 
@@ -124,7 +135,10 @@ void test('rejects init mutation with mismatched configFingerprint before applyi
     compareKeys: (left: number, right: number): number => left - right,
     store: new CustomMutationStore([
       { type: 'put', key: 1, value: 'one' } as BTreeMutation<number, string>,
-      { type: 'init', configFingerprint: 'wrong-fingerprint' } as BTreeMutation<number, string>,
+      { type: 'init', configFingerprint: 'wrong-fingerprint' } as BTreeMutation<
+        number,
+        string
+      >,
       { type: 'put', key: 2, value: 'two' } as BTreeMutation<number, string>,
     ]),
   });
@@ -133,8 +147,14 @@ void test('rejects init mutation with mismatched configFingerprint before applyi
     await tree.sync();
   }, BTreeConcurrencyError);
 
-  // eslint-disable-next-line @typescript-eslint/dot-notation -- testing internal state after error
-  assert.equal(tree['tree'].size(), 0, 'no mutations should be applied when fingerprint mismatches');
+  // Verify internal state: no mutations applied when fingerprint mismatches
+  assert.equal(
+    (
+      tree as unknown as { coord: { tree: { size: () => number } } }
+    ).coord.tree.size(),
+    0,
+    'no mutations should be applied when fingerprint mismatches',
+  );
 });
 
 void test('sync throws BTreeConcurrencyError when replay throws mid-batch (runtime failure after validation)', async (): Promise<void> => {
@@ -144,25 +164,35 @@ void test('sync throws BTreeConcurrencyError when replay throws mid-batch (runti
     enableEntryIdLookup: false,
   });
 
-  await assert.rejects(async (): Promise<void> => {
-    await tree.sync();
-  }, (error: unknown): boolean => {
-    assert.ok(error instanceof BTreeConcurrencyError, 'must be BTreeConcurrencyError');
-    // The wrapped error must include the original error's message for debugging (spec 6.3).
-    assert.ok(
-      error.message.includes('Replay failure'),
-      `must include replay failure prefix, got: ${error.message}`,
-    );
-    assert.ok(
-      error.message.length > 'Replay failure:'.length + 30,
-      `must include original cause detail, got: ${error.message}`,
-    );
-    return true;
-  });
+  await assert.rejects(
+    async (): Promise<void> => {
+      await tree.sync();
+    },
+    (error: unknown): boolean => {
+      assert.ok(
+        error instanceof BTreeConcurrencyError,
+        'must be BTreeConcurrencyError',
+      );
+      // The wrapped error must include the original error's message for debugging (spec 6.3).
+      assert.ok(
+        error.message.includes('Replay failure'),
+        `must include replay failure prefix, got: ${error.message}`,
+      );
+      assert.ok(
+        error.message.length > 'Replay failure:'.length + 30,
+        `must include original cause detail, got: ${error.message}`,
+      );
+      return true;
+    },
+  );
 
   // currentVersion must remain at 0 — the failed sync must not advance the version
-  // eslint-disable-next-line @typescript-eslint/dot-notation -- testing internal state after error
-  assert.equal(tree['currentVersion'], 0n, 'currentVersion must not advance on replay failure');
+  assert.equal(
+    (tree as unknown as { coord: { currentVersion: bigint } }).coord
+      .currentVersion,
+    0n,
+    'currentVersion must not advance on replay failure',
+  );
 });
 
 // --- putMany negative validation ---
@@ -184,7 +214,10 @@ void test('rejects putMany mutation with non-array entries', async (): Promise<v
   const tree = new ConcurrentInMemoryBTree<number, string>({
     compareKeys: (left: number, right: number): number => left - right,
     store: new CustomMutationStore([
-      { type: 'putMany', entries: 'not-an-array' } as unknown as BTreeMutation<number, string>,
+      { type: 'putMany', entries: 'not-an-array' } as unknown as BTreeMutation<
+        number,
+        string
+      >,
     ]),
   });
 
@@ -197,7 +230,10 @@ void test('rejects putMany mutation with entry missing key', async (): Promise<v
   const tree = new ConcurrentInMemoryBTree<number, string>({
     compareKeys: (left: number, right: number): number => left - right,
     store: new CustomMutationStore([
-      { type: 'putMany', entries: [{ value: 'v' }] } as unknown as BTreeMutation<number, string>,
+      {
+        type: 'putMany',
+        entries: [{ value: 'v' }],
+      } as unknown as BTreeMutation<number, string>,
     ]),
   });
 
@@ -210,7 +246,10 @@ void test('rejects putMany mutation with entry missing value', async (): Promise
   const tree = new ConcurrentInMemoryBTree<number, string>({
     compareKeys: (left: number, right: number): number => left - right,
     store: new CustomMutationStore([
-      { type: 'putMany', entries: [{ key: 1 }] } as unknown as BTreeMutation<number, string>,
+      { type: 'putMany', entries: [{ key: 1 }] } as unknown as BTreeMutation<
+        number,
+        string
+      >,
     ]),
   });
 
@@ -223,7 +262,10 @@ void test('rejects putMany mutation with null entry in array', async (): Promise
   const tree = new ConcurrentInMemoryBTree<number, string>({
     compareKeys: (left: number, right: number): number => left - right,
     store: new CustomMutationStore([
-      { type: 'putMany', entries: [null] } as unknown as BTreeMutation<number, string>,
+      { type: 'putMany', entries: [null] } as unknown as BTreeMutation<
+        number,
+        string
+      >,
     ]),
   });
 
@@ -238,7 +280,10 @@ void test('rejects deleteRange mutation missing startKey', async (): Promise<voi
   const tree = new ConcurrentInMemoryBTree<number, string>({
     compareKeys: (left: number, right: number): number => left - right,
     store: new CustomMutationStore([
-      { type: 'deleteRange', endKey: 10 } as unknown as BTreeMutation<number, string>,
+      { type: 'deleteRange', endKey: 10 } as unknown as BTreeMutation<
+        number,
+        string
+      >,
     ]),
   });
 
@@ -251,7 +296,10 @@ void test('rejects deleteRange mutation missing endKey', async (): Promise<void>
   const tree = new ConcurrentInMemoryBTree<number, string>({
     compareKeys: (left: number, right: number): number => left - right,
     store: new CustomMutationStore([
-      { type: 'deleteRange', startKey: 1 } as unknown as BTreeMutation<number, string>,
+      { type: 'deleteRange', startKey: 1 } as unknown as BTreeMutation<
+        number,
+        string
+      >,
     ]),
   });
 

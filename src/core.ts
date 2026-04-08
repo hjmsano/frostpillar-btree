@@ -3,13 +3,11 @@ export type {
   BTreeEntry,
   BTreeJSON,
   BTreeStats,
+  DeleteRebalancePolicy,
   DuplicateKeyPolicy,
   EntryId,
   InMemoryBTreeConfig,
   RangeBounds,
 } from './InMemoryBTree.js';
-export {
-  BTreeInvariantError,
-  BTreeValidationError,
-} from './errors.js';
+export { BTreeInvariantError, BTreeValidationError } from './errors.js';
 export type { KeyComparator } from './btree/types.js';

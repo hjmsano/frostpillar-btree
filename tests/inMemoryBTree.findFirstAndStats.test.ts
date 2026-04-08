@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  InMemoryBTree,
-  type BTreeEntry,
-} from '../src/index.js';
+import { InMemoryBTree, type BTreeEntry } from '../src/index.js';
 
 // ---------------------------------------------------------------------------
 // Helper
@@ -34,7 +31,11 @@ void test('findFirst returns the entry when key exists', (): void => {
   const id10 = tree.put(10, 'v10');
   tree.put(20, 'v20');
 
-  assert.deepEqual(tree.findFirst(10), { entryId: id10, key: 10, value: 'v10' });
+  assert.deepEqual(tree.findFirst(10), {
+    entryId: id10,
+    key: 10,
+    value: 'v10',
+  });
   tree.assertInvariants();
 });
 
@@ -54,7 +55,11 @@ void test('findFirst returns first duplicate when duplicateKeys is allow', (): v
   tree.put(10, 'second');
   tree.put(10, 'third');
 
-  assert.deepEqual(tree.findFirst(10), { entryId: idFirst, key: 10, value: 'first' });
+  assert.deepEqual(tree.findFirst(10), {
+    entryId: idFirst,
+    key: 10,
+    value: 'first',
+  });
   tree.assertInvariants();
 });
 
@@ -108,7 +113,11 @@ void test('findLast returns last duplicate when duplicateKeys is allow', (): voi
   tree.put(10, 'second');
   const idThird = tree.put(10, 'third');
 
-  assert.deepEqual(tree.findLast(10), { entryId: idThird, key: 10, value: 'third' });
+  assert.deepEqual(tree.findLast(10), {
+    entryId: idThird,
+    key: 10,
+    value: 'third',
+  });
   tree.assertInvariants();
 });
 
@@ -159,7 +168,11 @@ void test('findLast returns last of many duplicates spanning multiple leaves', (
   tree.put(10, 'd5');
   const idLast = tree.put(10, 'd6');
 
-  assert.deepEqual(tree.findLast(10), { entryId: idLast, key: 10, value: 'd6' });
+  assert.deepEqual(tree.findLast(10), {
+    entryId: idLast,
+    key: 10,
+    value: 'd6',
+  });
   tree.assertInvariants();
 });
 
@@ -188,9 +201,21 @@ void test('getStats returns correct stats after inserts triggering splits', (): 
   const stats = tree.getStats();
   assert.equal(stats.entryCount, 6);
   // With maxLeafEntries=3: 6 entries require at least 2 leaves and 1 branch
-  assert.equal(stats.height, 2, 'expected height 2 after splits with 6 entries and maxLeaf=3');
-  assert.equal(stats.leafCount, 3, 'expected 3 leaves for 6 entries with maxLeaf=3');
-  assert.equal(stats.branchCount, 1, 'expected 1 branch node for 3 leaves with maxBranch=3');
+  assert.equal(
+    stats.height,
+    2,
+    'expected height 2 after splits with 6 entries and maxLeaf=3',
+  );
+  assert.equal(
+    stats.leafCount,
+    3,
+    'expected 3 leaves for 6 entries with maxLeaf=3',
+  );
+  assert.equal(
+    stats.branchCount,
+    1,
+    'expected 1 branch node for 3 leaves with maxBranch=3',
+  );
   tree.assertInvariants();
 });
 
@@ -248,12 +273,17 @@ void test('iterator does not crash when tree is mutated during iteration', (): v
   }
 
   // The iterator must see at least the original 9 entries
-  assert.ok(collected.length >= 9, `expected at least 9 entries, got ${collected.length}`);
+  assert.ok(
+    collected.length >= 9,
+    `expected at least 9 entries, got ${collected.length}`,
+  );
 
   // Keys must be in non-descending order (iterator contract)
   for (let i = 1; i < collected.length; i += 1) {
-    assert.ok(collected[i - 1].key <= collected[i].key,
-      `out-of-order keys at index ${i - 1}: ${collected[i - 1].key} > ${collected[i].key}`);
+    assert.ok(
+      collected[i - 1].key <= collected[i].key,
+      `out-of-order keys at index ${i - 1}: ${collected[i - 1].key} > ${collected[i].key}`,
+    );
   }
 
   tree.assertInvariants();
@@ -343,8 +373,10 @@ void test('reverse iterator does not crash when tree is mutated during iteration
 
   // Keys must be in non-ascending order (reverse iterator contract)
   for (let i = 1; i < collected.length; i += 1) {
-    assert.ok(collected[i - 1].key >= collected[i].key,
-      `out-of-order reverse keys at index ${i - 1}: ${collected[i - 1].key} < ${collected[i].key}`);
+    assert.ok(
+      collected[i - 1].key >= collected[i].key,
+      `out-of-order reverse keys at index ${i - 1}: ${collected[i - 1].key} < ${collected[i].key}`,
+    );
   }
 
   tree.assertInvariants();

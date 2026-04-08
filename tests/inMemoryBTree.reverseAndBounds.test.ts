@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  InMemoryBTree,
-  type BTreeEntry,
-} from '../src/index.js';
+import { InMemoryBTree, type BTreeEntry } from '../src/index.js';
 
 // ---------------------------------------------------------------------------
 // Helper
@@ -35,11 +32,14 @@ void test('entriesReversed() returns all entries in descending comparator order'
   const id5 = tree.put(5, 'v5');
   const id20 = tree.put(20, 'v20');
 
-  assert.deepEqual([...tree.entriesReversed()], [
-    { entryId: id20, key: 20, value: 'v20' },
-    { entryId: id10, key: 10, value: 'v10' },
-    { entryId: id5, key: 5, value: 'v5' },
-  ]);
+  assert.deepEqual(
+    [...tree.entriesReversed()],
+    [
+      { entryId: id20, key: 20, value: 'v20' },
+      { entryId: id10, key: 10, value: 'v10' },
+      { entryId: id5, key: 5, value: 'v5' },
+    ],
+  );
   tree.assertInvariants();
 });
 
@@ -49,11 +49,14 @@ void test('entriesReversed() visits duplicate keys in reverse insertion order', 
   const idB = tree.put(7, 'b');
   const idC = tree.put(7, 'c');
 
-  assert.deepEqual([...tree.entriesReversed()], [
-    { entryId: idC, key: 7, value: 'c' },
-    { entryId: idB, key: 7, value: 'b' },
-    { entryId: idA, key: 7, value: 'a' },
-  ]);
+  assert.deepEqual(
+    [...tree.entriesReversed()],
+    [
+      { entryId: idC, key: 7, value: 'c' },
+      { entryId: idB, key: 7, value: 'b' },
+      { entryId: idA, key: 7, value: 'a' },
+    ],
+  );
   tree.assertInvariants();
 });
 
@@ -84,9 +87,10 @@ void test('entriesReversed() single entry', (): void => {
   const tree = numTree();
   const id = tree.put(42, 'only');
 
-  assert.deepEqual([...tree.entriesReversed()], [
-    { entryId: id, key: 42, value: 'only' },
-  ]);
+  assert.deepEqual(
+    [...tree.entriesReversed()],
+    [{ entryId: id, key: 42, value: 'only' }],
+  );
 });
 
 void test('entriesReversed() iterator exhausts correctly', (): void => {
@@ -158,16 +162,20 @@ void test('range with both bounds exclusive', (): void => {
   const id2 = tree.put(2, 'b');
   tree.put(3, 'c');
 
-  assert.deepEqual(tree.range(1, 3, { lowerBound: 'exclusive', upperBound: 'exclusive' }), [
-    { entryId: id2, key: 2, value: 'b' },
-  ]);
+  assert.deepEqual(
+    tree.range(1, 3, { lowerBound: 'exclusive', upperBound: 'exclusive' }),
+    [{ entryId: id2, key: 2, value: 'b' }],
+  );
 });
 
 void test('range with both exclusive on same key returns empty', (): void => {
   const tree = numTree();
   tree.put(5, 'v5');
 
-  assert.deepEqual(tree.range(5, 5, { lowerBound: 'exclusive', upperBound: 'exclusive' }), []);
+  assert.deepEqual(
+    tree.range(5, 5, { lowerBound: 'exclusive', upperBound: 'exclusive' }),
+    [],
+  );
 });
 
 // --- explicit inclusive (same as default) ---
@@ -183,11 +191,14 @@ void test('range with explicit inclusive bounds matches default', (): void => {
     tree.range(1, 3),
   );
   // Verify result is correct too
-  assert.deepEqual(tree.range(1, 3, { lowerBound: 'inclusive', upperBound: 'inclusive' }), [
-    { entryId: id1, key: 1, value: 'a' },
-    { entryId: id2, key: 2, value: 'b' },
-    { entryId: id3, key: 3, value: 'c' },
-  ]);
+  assert.deepEqual(
+    tree.range(1, 3, { lowerBound: 'inclusive', upperBound: 'inclusive' }),
+    [
+      { entryId: id1, key: 1, value: 'a' },
+      { entryId: id2, key: 2, value: 'b' },
+      { entryId: id3, key: 3, value: 'c' },
+    ],
+  );
 });
 
 // --- empty tree ---
@@ -196,7 +207,10 @@ void test('range with options returns empty for empty tree', (): void => {
   const tree = numTree();
   assert.deepEqual(tree.range(1, 10, { lowerBound: 'exclusive' }), []);
   assert.deepEqual(tree.range(1, 10, { upperBound: 'exclusive' }), []);
-  assert.deepEqual(tree.range(1, 10, { lowerBound: 'exclusive', upperBound: 'exclusive' }), []);
+  assert.deepEqual(
+    tree.range(1, 10, { lowerBound: 'exclusive', upperBound: 'exclusive' }),
+    [],
+  );
 });
 
 // --- start > end ---
@@ -287,7 +301,10 @@ void test('range with exclusive bounds across multiple leaves', (): void => {
     tree.put(i, `v${String(i)}`);
   }
 
-  const result = tree.range(5, 25, { lowerBound: 'exclusive', upperBound: 'exclusive' });
+  const result = tree.range(5, 25, {
+    lowerBound: 'exclusive',
+    upperBound: 'exclusive',
+  });
   assert.equal(result.length, 19); // 6..24
   assert.equal(result[0].key, 6);
   assert.equal(result[result.length - 1].key, 24);
@@ -330,14 +347,20 @@ void test('range with both bounds exclusive and duplicate keys', (): void => {
   tree.put(10, 'f');
 
   // Both bounds exclusive: excludes all 5s and all 10s, returns only 7s
-  assert.deepEqual(tree.range(5, 10, { lowerBound: 'exclusive', upperBound: 'exclusive' }), [
-    { entryId: id7a, key: 7, value: 'c' },
-    { entryId: id7b, key: 7, value: 'd' },
-  ]);
+  assert.deepEqual(
+    tree.range(5, 10, { lowerBound: 'exclusive', upperBound: 'exclusive' }),
+    [
+      { entryId: id7a, key: 7, value: 'c' },
+      { entryId: id7b, key: 7, value: 'd' },
+    ],
+  );
 });
 
 void test('range/count/deleteRange consistency for all 4 bound combinations', (): void => {
-  const combos: { lowerBound?: 'inclusive' | 'exclusive'; upperBound?: 'inclusive' | 'exclusive' }[] = [
+  const combos: {
+    lowerBound?: 'inclusive' | 'exclusive';
+    upperBound?: 'inclusive' | 'exclusive';
+  }[] = [
     { lowerBound: 'inclusive', upperBound: 'inclusive' },
     { lowerBound: 'inclusive', upperBound: 'exclusive' },
     { lowerBound: 'exclusive', upperBound: 'inclusive' },
@@ -349,6 +372,10 @@ void test('range/count/deleteRange consistency for all 4 bound combinations', ()
     for (let i = 0; i < 20; i += 1) tree.put(i, `v${i}`);
     const rangeResult = tree.range(5, 15, opts);
     const countResult = tree.count(5, 15, opts);
-    assert.equal(rangeResult.length, countResult, `range vs count mismatch for ${JSON.stringify(opts)}`);
+    assert.equal(
+      rangeResult.length,
+      countResult,
+      `range vs count mismatch for ${JSON.stringify(opts)}`,
+    );
   }
 });

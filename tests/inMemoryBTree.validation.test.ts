@@ -33,7 +33,10 @@ void test('rejects non-function compareKeys at runtime', (): void => {
   assert.throws(
     (): InMemoryBTree<number, string> =>
       new InMemoryBTree<number, string>({
-        compareKeys: undefined as unknown as (left: number, right: number) => number,
+        compareKeys: undefined as unknown as (
+          left: number,
+          right: number,
+        ) => number,
       }),
     BTreeValidationError,
   );
@@ -131,9 +134,15 @@ void test('EntryId operations throw when enableEntryIdLookup is disabled', (): v
   });
 
   const id = tree.put(1, 'one');
-  assert.throws((): void => { tree.peekById(id); }, BTreeValidationError);
-  assert.throws((): void => { tree.updateById(id, 'ONE'); }, BTreeValidationError);
-  assert.throws((): void => { tree.removeById(id); }, BTreeValidationError);
+  assert.throws((): void => {
+    tree.peekById(id);
+  }, BTreeValidationError);
+  assert.throws((): void => {
+    tree.updateById(id, 'ONE');
+  }, BTreeValidationError);
+  assert.throws((): void => {
+    tree.removeById(id);
+  }, BTreeValidationError);
 });
 
 void test('peekFirst returns entryId with the smallest entry', (): void => {
@@ -245,7 +254,8 @@ void test('rejects maxRetries exceeding upper bound', (): void => {
       new ConcurrentInMemoryBTree<number, string>({
         compareKeys: (left: number, right: number): number => left - right,
         store: {
-          getLogEntriesSince: () => Promise.resolve({ version: 0n, mutations: [] }),
+          getLogEntriesSince: () =>
+            Promise.resolve({ version: 0n, mutations: [] }),
           append: () => Promise.resolve({ applied: false, version: 0n }),
         },
         maxRetries: 1025,
@@ -260,7 +270,8 @@ void test('rejects invalid maxSyncMutationsPerBatch', (): void => {
       new ConcurrentInMemoryBTree<number, string>({
         compareKeys: (left: number, right: number): number => left - right,
         store: {
-          getLogEntriesSince: () => Promise.resolve({ version: 0n, mutations: [] }),
+          getLogEntriesSince: () =>
+            Promise.resolve({ version: 0n, mutations: [] }),
           append: () => Promise.resolve({ applied: false, version: 0n }),
         },
         maxSyncMutationsPerBatch: 0,

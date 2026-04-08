@@ -46,7 +46,11 @@ void test('toJSON() includes all entries as [key, value] tuples in order', (): v
   tree.put(30, 'c');
   tree.put(10, 'a');
   tree.put(20, 'b');
-  assert.deepEqual(tree.toJSON().entries, [[10, 'a'], [20, 'b'], [30, 'c']]);
+  assert.deepEqual(tree.toJSON().entries, [
+    [10, 'a'],
+    [20, 'b'],
+    [30, 'c'],
+  ]);
 });
 
 void test('toJSON() preserves duplicate key entries in order', (): void => {
@@ -54,15 +58,25 @@ void test('toJSON() preserves duplicate key entries in order', (): void => {
   tree.put(5, 'first');
   tree.put(5, 'second');
   tree.put(3, 'lo');
-  assert.deepEqual(tree.toJSON().entries, [[3, 'lo'], [5, 'first'], [5, 'second']]);
+  assert.deepEqual(tree.toJSON().entries, [
+    [3, 'lo'],
+    [5, 'first'],
+    [5, 'second'],
+  ]);
 });
 
 void test('toJSON() output is JSON.stringify-able', (): void => {
   const tree = numTree();
   tree.put(1, 'a');
   tree.put(2, 'b');
-  const parsed = JSON.parse(JSON.stringify(tree.toJSON())) as BTreeJSON<number, string>;
-  assert.deepEqual(parsed.entries, [[1, 'a'], [2, 'b']]);
+  const parsed = JSON.parse(JSON.stringify(tree.toJSON())) as BTreeJSON<
+    number,
+    string
+  >;
+  assert.deepEqual(parsed.entries, [
+    [1, 'a'],
+    [2, 'b'],
+  ]);
   assert.equal(parsed.version, 1);
 });
 
@@ -186,7 +200,10 @@ void test('round-trip: autoScale tree via toJSON -> fromJSON preserves tier and 
   const restoredJSON = restored.toJSON();
   assert.equal(restoredJSON.config.autoScale, true);
   assert.equal(restoredJSON.config.maxLeafEntries, json.config.maxLeafEntries);
-  assert.equal(restoredJSON.config.maxBranchChildren, json.config.maxBranchChildren);
+  assert.equal(
+    restoredJSON.config.maxBranchChildren,
+    json.config.maxBranchChildren,
+  );
 
   // Verify restored tree can still grow
   for (let i = 1100; i < 1200; i += 1) {
@@ -199,8 +216,17 @@ void test('round-trip: autoScale tree via toJSON -> fromJSON preserves tier and 
 void test('fromJSON rejects unsorted entries with duplicateKeys allow', (): void => {
   const json: BTreeJSON<number, string> = {
     version: 1,
-    config: { maxLeafEntries: 64, maxBranchChildren: 64, duplicateKeys: 'allow', enableEntryIdLookup: false, autoScale: false },
-    entries: [[20, 'b'], [10, 'a']],
+    config: {
+      maxLeafEntries: 64,
+      maxBranchChildren: 64,
+      duplicateKeys: 'allow',
+      enableEntryIdLookup: false,
+      autoScale: false,
+    },
+    entries: [
+      [20, 'b'],
+      [10, 'a'],
+    ],
   };
   assert.throws(
     () => InMemoryBTree.fromJSON(json, (a, b) => a - b),
@@ -211,8 +237,18 @@ void test('fromJSON rejects unsorted entries with duplicateKeys allow', (): void
 void test('fromJSON accepts equal keys when duplicateKeys is allow', (): void => {
   const json: BTreeJSON<number, string> = {
     version: 1,
-    config: { maxLeafEntries: 64, maxBranchChildren: 64, duplicateKeys: 'allow', enableEntryIdLookup: false, autoScale: false },
-    entries: [[10, 'a'], [10, 'b'], [20, 'c']],
+    config: {
+      maxLeafEntries: 64,
+      maxBranchChildren: 64,
+      duplicateKeys: 'allow',
+      enableEntryIdLookup: false,
+      autoScale: false,
+    },
+    entries: [
+      [10, 'a'],
+      [10, 'b'],
+      [20, 'c'],
+    ],
   };
   const restored = InMemoryBTree.fromJSON(json, (a, b) => a - b);
   assert.equal(restored.size(), 3);
@@ -222,8 +258,17 @@ void test('fromJSON accepts equal keys when duplicateKeys is allow', (): void =>
 void test('fromJSON rejects unsorted entries', (): void => {
   const json: BTreeJSON<number, string> = {
     version: 1,
-    config: { maxLeafEntries: 64, maxBranchChildren: 64, duplicateKeys: 'replace', enableEntryIdLookup: false, autoScale: false },
-    entries: [[20, 'b'], [10, 'a']],
+    config: {
+      maxLeafEntries: 64,
+      maxBranchChildren: 64,
+      duplicateKeys: 'replace',
+      enableEntryIdLookup: false,
+      autoScale: false,
+    },
+    entries: [
+      [20, 'b'],
+      [10, 'a'],
+    ],
   };
   assert.throws(
     () => InMemoryBTree.fromJSON(json, (a, b) => a - b),
@@ -234,8 +279,17 @@ void test('fromJSON rejects unsorted entries', (): void => {
 void test('fromJSON rejects duplicate keys when policy is reject', (): void => {
   const json: BTreeJSON<number, string> = {
     version: 1,
-    config: { maxLeafEntries: 64, maxBranchChildren: 64, duplicateKeys: 'reject', enableEntryIdLookup: false, autoScale: false },
-    entries: [[10, 'a'], [10, 'b']],
+    config: {
+      maxLeafEntries: 64,
+      maxBranchChildren: 64,
+      duplicateKeys: 'reject',
+      enableEntryIdLookup: false,
+      autoScale: false,
+    },
+    entries: [
+      [10, 'a'],
+      [10, 'b'],
+    ],
   };
   assert.throws(
     () => InMemoryBTree.fromJSON(json, (a, b) => a - b),
@@ -274,4 +328,3 @@ void test('round-trip preserves falsy keys and values (0, empty string)', (): vo
   assert.equal(restored.get(1), 'non-empty');
   restored.assertInvariants();
 });
-

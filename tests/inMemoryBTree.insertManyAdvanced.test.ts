@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  InMemoryBTree,
-} from '../src/index.js';
+import { InMemoryBTree } from '../src/index.js';
 
 // ---------------------------------------------------------------------------
 // Helper
@@ -68,7 +66,10 @@ void test('putMany on empty tree with 1000 entries passes invariants', (): void 
 });
 
 void test('putMany bulk load produces same logical result as sequential insert', (): void => {
-  const entries = Array.from({ length: 50 }, (_, i) => ({ key: i * 2, value: `v${String(i)}` }));
+  const entries = Array.from({ length: 50 }, (_, i) => ({
+    key: i * 2,
+    value: `v${String(i)}`,
+  }));
   const treeBulk = numTree();
   treeBulk.putMany(entries);
   const treeSeq = numTree();
@@ -166,7 +167,11 @@ void test('putMany into non-empty tree with reject policy throws on duplicate', 
   tree.put(30, 'c');
 
   assert.throws(
-    () => tree.putMany([{ key: 20, value: 'b' }, { key: 30, value: 'dup' }]),
+    () =>
+      tree.putMany([
+        { key: 20, value: 'b' },
+        { key: 30, value: 'dup' },
+      ]),
     (err: Error) => err.constructor.name === 'BTreeValidationError',
   );
 });

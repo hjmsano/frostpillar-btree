@@ -19,11 +19,13 @@ This keeps release and package publication aligned as a single release event con
 ## Decision
 
 1. Add a tag-triggered release workflow (`push.tags: v*`) that runs:
+
 - dependency install
 - `pnpm check`
 - `pnpm build`
 - browser minified bundle build (`dist/frostpillar-btree.min.js`)
 - GitHub Release creation from tag and asset upload
+
 2. Add a publish workflow triggered by `release` event (`types: [created]`).
 3. Keep `GITHUB_TOKEN` authentication for package publish with `packages: write`.
 4. Set publish-time package name to `@<owner>/frostpillar-btree`.

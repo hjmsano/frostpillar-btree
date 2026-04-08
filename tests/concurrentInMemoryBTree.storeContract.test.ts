@@ -6,11 +6,11 @@ import {
   ConcurrentInMemoryBTree,
   type SharedTreeStore,
 } from '../src/index.js';
+import { AtomicMemorySharedTreeStore } from './helpers/sharedTreeStoreStubs.js';
 import {
-  AtomicMemorySharedTreeStore,
   AppliedWithoutVersionAdvanceStore,
   RegressedConflictVersionStore,
-} from './helpers/sharedTreeStoreStubs.js';
+} from './helpers/specializedStoreStubs.js';
 
 void test('throws when append reports applied=true without version advance', async (): Promise<void> => {
   const tree = new ConcurrentInMemoryBTree<number, string>({
@@ -41,10 +41,7 @@ void test('immediately corrupts instance when append succeeds but local apply fa
   const applyFailMessage = 'intentional comparator failure during local apply';
   const brokenComparatorTree = new ConcurrentInMemoryBTree<number, string>({
     compareKeys: (left: number, right: number): number => {
-      if (
-        (left === 1 && right === 2)
-        || (left === 2 && right === 1)
-      ) {
+      if ((left === 1 && right === 2) || (left === 2 && right === 1)) {
         throw new Error(applyFailMessage);
       }
       return left - right;
@@ -62,16 +59,22 @@ void test('immediately corrupts instance when append succeeds but local apply fa
 
   // The local apply failure after successful append must be wrapped as BTreeConcurrencyError
   // and must include the original error message for debugging.
-  await assert.rejects(async (): Promise<void> => {
-    await brokenComparatorTree.put(2, 'two');
-  }, (error: unknown): boolean => {
-    assert.ok(error instanceof BTreeConcurrencyError, 'must be BTreeConcurrencyError');
-    assert.ok(
-      error.message.includes(applyFailMessage),
-      `must include original error message, got: ${error.message}`,
-    );
-    return true;
-  });
+  await assert.rejects(
+    async (): Promise<void> => {
+      await brokenComparatorTree.put(2, 'two');
+    },
+    (error: unknown): boolean => {
+      assert.ok(
+        error instanceof BTreeConcurrencyError,
+        'must be BTreeConcurrencyError',
+      );
+      assert.ok(
+        error.message.includes(applyFailMessage),
+        `must include original error message, got: ${error.message}`,
+      );
+      return true;
+    },
+  );
 
   // The healthy instance still works — the store-side mutation was appended successfully.
   const healthySnapshot = await healthyComparatorTree.snapshot();
@@ -96,9 +99,10 @@ void test('throws when append returns non-bigint version', async (): Promise<voi
   const malformedAppendStore: SharedTreeStore<number, string> = {
     getLogEntriesSince: () => Promise.resolve({ version: 0n, mutations: [] }),
     append: () =>
-      Promise.resolve(
-        { applied: true, version: 1 } as unknown as { applied: boolean; version: bigint },
-      ),
+      Promise.resolve({ applied: true, version: 1 } as unknown as {
+        applied: boolean;
+        version: bigint;
+      }),
   };
 
   const tree = new ConcurrentInMemoryBTree<number, string>({
@@ -115,9 +119,10 @@ void test('throws when append returns non-boolean applied flag', async (): Promi
   const malformedAppendStore: SharedTreeStore<number, string> = {
     getLogEntriesSince: () => Promise.resolve({ version: 0n, mutations: [] }),
     append: () =>
-      Promise.resolve(
-        { applied: 'yes', version: 1n } as unknown as { applied: boolean; version: bigint },
-      ),
+      Promise.resolve({ applied: 'yes', version: 1n } as unknown as {
+        applied: boolean;
+        version: bigint;
+      }),
   };
 
   const tree = new ConcurrentInMemoryBTree<number, string>({
@@ -161,7 +166,10 @@ void test('throws when sync mutation batch exceeds maxSyncMutationsPerBatch', as
 void test('throws when getLogEntriesSince returns non-bigint version', async (): Promise<void> => {
   const malformedStore: SharedTreeStore<number, string> = {
     getLogEntriesSince: () =>
-      Promise.resolve({ version: 1, mutations: [] } as unknown as { version: bigint; mutations: [] }),
+      Promise.resolve({ version: 1, mutations: [] } as unknown as {
+        version: bigint;
+        mutations: [];
+      }),
     append: () => Promise.resolve({ applied: false, version: 0n }),
   };
 
@@ -178,7 +186,10 @@ void test('throws when getLogEntriesSince returns non-bigint version', async ():
 void test('throws when getLogEntriesSince returns non-array mutations', async (): Promise<void> => {
   const malformedStore: SharedTreeStore<number, string> = {
     getLogEntriesSince: () =>
-      Promise.resolve({ version: 1n, mutations: 'not-an-array' } as unknown as { version: bigint; mutations: [] }),
+      Promise.resolve({ version: 1n, mutations: 'not-an-array' } as unknown as {
+        version: bigint;
+        mutations: [];
+      }),
     append: () => Promise.resolve({ applied: false, version: 0n }),
   };
 
@@ -200,7 +211,11 @@ void test('sync with exactly maxSyncMutationsPerBatch mutations succeeds', async
       return Promise.resolve({
         version: 1n,
         mutations: [
-          { type: 'init' as const, configFingerprint: '{"duplicateKeys":"replace","maxLeafEntries":64,"maxBranchChildren":64,"enableEntryIdLookup":false,"autoScale":false}' },
+          {
+            type: 'init' as const,
+            configFingerprint:
+              '{"duplicateKeys":"replace","maxLeafEntries":64,"maxBranchChildren":64,"enableEntryIdLookup":false,"autoScale":false}',
+          },
           { type: 'put' as const, key: 1, value: 'one' },
           { type: 'put' as const, key: 2, value: 'two' },
         ],
@@ -236,7 +251,8 @@ void test('sync ignores log with version <= currentVersion (stale read)', async 
 void test('throws when append returns null/undefined as result', async (): Promise<void> => {
   const nullAppendStore: SharedTreeStore<number, string> = {
     getLogEntriesSince: () => Promise.resolve({ version: 0n, mutations: [] }),
-    append: () => Promise.resolve(null as unknown as { applied: boolean; version: bigint }),
+    append: () =>
+      Promise.resolve(null as unknown as { applied: boolean; version: bigint }),
   };
 
   const tree = new ConcurrentInMemoryBTree<number, string>({
@@ -255,7 +271,8 @@ void test('throws when append returns null/undefined as result', async (): Promi
 
 void test('handles version jump > 1 from store append', async (): Promise<void> => {
   // JumpVersionStore already increments by 10 — verify tree handles this
-  const { JumpVersionStore } = await import('./helpers/sharedTreeStoreStubs.js');
+  const { JumpVersionStore } =
+    await import('./helpers/sharedTreeStoreStubs.js');
   const store = new JumpVersionStore<number, string>();
   const tree = new ConcurrentInMemoryBTree<number, string>({
     compareKeys: (left: number, right: number): number => left - right,

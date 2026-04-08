@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  InMemoryBTree,
-  type EntryId,
-} from '../src/index.js';
+import { InMemoryBTree, type EntryId } from '../src/index.js';
 
 // ---------------------------------------------------------------------------
 // Helper
@@ -70,9 +67,7 @@ void test('tree functions normally after clear and re-insert', (): void => {
   const newId = tree.put(5, 'v5');
   assert.equal(newId, 2 as EntryId);
   assert.equal(tree.size(), 1);
-  assert.deepEqual(tree.snapshot(), [
-    { entryId: newId, key: 5, value: 'v5' },
-  ]);
+  assert.deepEqual(tree.snapshot(), [{ entryId: newId, key: 5, value: 'v5' }]);
   tree.assertInvariants();
 });
 
@@ -116,7 +111,11 @@ void test('clear() with enableEntryIdLookup allows new peekById after re-insert'
   tree.clear();
 
   const newId = tree.put(5, 'v5');
-  assert.deepEqual(tree.peekById(newId), { entryId: newId, key: 5, value: 'v5' });
+  assert.deepEqual(tree.peekById(newId), {
+    entryId: newId,
+    key: 5,
+    value: 'v5',
+  });
   tree.assertInvariants();
 });
 

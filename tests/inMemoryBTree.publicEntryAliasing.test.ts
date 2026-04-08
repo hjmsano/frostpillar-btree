@@ -45,7 +45,11 @@ void test('getPairOrNextLower: returned entry is not a live alias', (): void => 
   assert.ok(entry !== null);
   assert.equal(entry.value, 'old');
   tree.updateById(id, 'new');
-  assert.equal(entry.value, 'old', 'getPairOrNextLower must not alias internal entry');
+  assert.equal(
+    entry.value,
+    'old',
+    'getPairOrNextLower must not alias internal entry',
+  );
 });
 
 void test('peekFirst: returned entry is not a live alias', (): void => {
@@ -98,7 +102,11 @@ void test('entries(): yielded entries are not live aliases', (): void => {
   assert.equal(collected.length, 2);
   assert.equal(collected[0].value, 'old');
   tree.updateById(id, 'new');
-  assert.equal(collected[0].value, 'old', 'entries() must not yield live aliases');
+  assert.equal(
+    collected[0].value,
+    'old',
+    'entries() must not yield live aliases',
+  );
 });
 
 void test('entriesReversed(): yielded entries are not live aliases', (): void => {
@@ -109,7 +117,11 @@ void test('entriesReversed(): yielded entries are not live aliases', (): void =>
   assert.equal(collected.length, 2);
   assert.equal(collected[0].value, 'old');
   tree.updateById(id, 'new');
-  assert.equal(collected[0].value, 'old', 'entriesReversed() must not yield live aliases');
+  assert.equal(
+    collected[0].value,
+    'old',
+    'entriesReversed() must not yield live aliases',
+  );
 });
 
 void test('forEach: callback receives entries that are not live aliases', (): void => {
@@ -117,7 +129,7 @@ void test('forEach: callback receives entries that are not live aliases', (): vo
   const id = tree.put(1, 'old');
   tree.put(2, 'other');
   const collected: { value: string }[] = [];
-  tree.forEach(e => collected.push(e));
+  tree.forEach((e) => collected.push(e));
   assert.equal(collected[0].value, 'old');
   tree.updateById(id, 'new');
   assert.equal(collected[0].value, 'old', 'forEach must not pass live aliases');
@@ -131,7 +143,11 @@ void test('snapshot(): array elements are not live aliases', (): void => {
   assert.equal(snap.length, 2);
   assert.equal(snap[0].value, 'old');
   tree.updateById(id, 'new');
-  assert.equal(snap[0].value, 'old', 'snapshot() must not contain live aliases');
+  assert.equal(
+    snap[0].value,
+    'old',
+    'snapshot() must not contain live aliases',
+  );
 });
 
 void test('range(): returned entries are not live aliases', (): void => {
@@ -142,5 +158,48 @@ void test('range(): returned entries are not live aliases', (): void => {
   assert.equal(results.length, 1);
   assert.equal(results[0].value, 'old');
   tree.updateById(id, 'new');
-  assert.equal(results[0].value, 'old', 'range() must not contain live aliases');
+  assert.equal(
+    results[0].value,
+    'old',
+    'range() must not contain live aliases',
+  );
+});
+
+void test('put-replace: previously returned entry is not aliased', (): void => {
+  const tree = makeTree();
+  tree.put(42, 'old');
+  const entry = tree.findFirst(42);
+  assert.ok(entry !== null);
+  assert.equal(entry.value, 'old');
+  tree.put(42, 'new');
+  assert.equal(entry.value, 'old', 'put-replace must not alias internal entry');
+});
+
+void test('put-replace: entries() snapshot is not aliased', (): void => {
+  const tree = makeTree();
+  tree.put(1, 'old');
+  tree.put(2, 'other');
+  const collected = [...tree.entries()];
+  assert.equal(collected[0].value, 'old');
+  tree.put(1, 'new');
+  assert.equal(
+    collected[0].value,
+    'old',
+    'put-replace must not alias entries from entries()',
+  );
+});
+
+void test('put-replace: forEach snapshot is not aliased', (): void => {
+  const tree = makeTree();
+  tree.put(1, 'old');
+  tree.put(2, 'other');
+  const collected: { value: string }[] = [];
+  tree.forEach((e) => collected.push(e));
+  assert.equal(collected[0].value, 'old');
+  tree.put(1, 'new');
+  assert.equal(
+    collected[0].value,
+    'old',
+    'put-replace must not alias entries from forEach',
+  );
 });

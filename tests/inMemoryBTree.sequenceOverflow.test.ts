@@ -9,12 +9,15 @@ void test('insert throws BTreeValidationError when sequence reaches MAX_SAFE_INT
     compareKeys: (a: number, b: number): number => a - b,
   });
 
-  const state = (tree as unknown as { state: BTreeState<number, string> }).state;
+  const state = (tree as unknown as { state: BTreeState<number, string> })
+    .state;
   state.nextSequence = Number.MAX_SAFE_INTEGER;
 
   assert.throws(
     () => tree.put(1, 'a'),
-    (error: Error) => error instanceof BTreeValidationError && error.message.includes('overflow'),
+    (error: Error) =>
+      error instanceof BTreeValidationError &&
+      error.message.includes('overflow'),
   );
 });
 
@@ -23,16 +26,20 @@ void test('putMany via bulk load throws when sequence would overflow', (): void 
     compareKeys: (a: number, b: number): number => a - b,
   });
 
-  const state = (tree as unknown as { state: BTreeState<number, string> }).state;
+  const state = (tree as unknown as { state: BTreeState<number, string> })
+    .state;
   state.nextSequence = Number.MAX_SAFE_INTEGER - 1;
 
   assert.throws(
-    () => tree.putMany([
-      { key: 1, value: 'a' },
-      { key: 2, value: 'b' },
-      { key: 3, value: 'c' },
-    ]),
-    (error: Error) => error instanceof BTreeValidationError && error.message.includes('overflow'),
+    () =>
+      tree.putMany([
+        { key: 1, value: 'a' },
+        { key: 2, value: 'b' },
+        { key: 3, value: 'c' },
+      ]),
+    (error: Error) =>
+      error instanceof BTreeValidationError &&
+      error.message.includes('overflow'),
   );
 });
 
@@ -41,7 +48,8 @@ void test('insert succeeds at MAX_SAFE_INTEGER - 1', (): void => {
     compareKeys: (a: number, b: number): number => a - b,
   });
 
-  const state = (tree as unknown as { state: BTreeState<number, string> }).state;
+  const state = (tree as unknown as { state: BTreeState<number, string> })
+    .state;
   state.nextSequence = Number.MAX_SAFE_INTEGER - 1;
 
   const id = tree.put(1, 'a');
@@ -55,11 +63,20 @@ void test('updateById does not allocate a new sequence — safe near MAX_SAFE_IN
   });
 
   const id = tree.put(1, 'a');
-  const state = (tree as unknown as { state: BTreeState<number, string> }).state;
+  const state = (tree as unknown as { state: BTreeState<number, string> })
+    .state;
 
   // Set sequence near overflow and update — should not increment
   state.nextSequence = Number.MAX_SAFE_INTEGER;
-  assert.deepEqual(tree.updateById(id, 'b'), { entryId: id, key: 1, value: 'b' });
-  assert.equal(state.nextSequence, Number.MAX_SAFE_INTEGER, 'updateById must not increment nextSequence');
+  assert.deepEqual(tree.updateById(id, 'b'), {
+    entryId: id,
+    key: 1,
+    value: 'b',
+  });
+  assert.equal(
+    state.nextSequence,
+    Number.MAX_SAFE_INTEGER,
+    'updateById must not increment nextSequence',
+  );
   assert.equal(tree.get(1), 'b');
 });
