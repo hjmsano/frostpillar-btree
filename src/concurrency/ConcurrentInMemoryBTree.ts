@@ -90,10 +90,11 @@ export class ConcurrentInMemoryBTree<TKey, TValue> {
         applyMutationLocal(this.tree, mutation, () => { this.initSeen = true; });
       }
       this.currentVersion = log.version;
-    } catch {
+    } catch (error: unknown) {
       this.corrupted = true;
+      const cause = error instanceof Error ? error.message : String(error);
       throw new BTreeConcurrencyError(
-        'Replay failure: instance is permanently corrupted. Discard and create a new instance.',
+        `Replay failure: instance is permanently corrupted. Discard and create a new instance. Cause: ${cause}`,
       );
     }
   }
@@ -142,15 +143,23 @@ export class ConcurrentInMemoryBTree<TKey, TValue> {
       const appendResult = await this.store.append(expectedVersion, mutations);
       assertAppendVersionContract(expectedVersion, appendResult);
       if (appendResult.applied) {
-        for (const m of mutations) {
-          if (m === mutation) break;
-          applyMutationLocal(this.tree, m, () => { this.initSeen = true; });
+        try {
+          for (const m of mutations) {
+            if (m === mutation) break;
+            applyMutationLocal(this.tree, m, () => { this.initSeen = true; });
+          }
+          const localResult = applyMutationLocal(
+            this.tree, mutation, () => { this.initSeen = true; },
+          ) as MutationResult<TKey, TValue, TMutation>;
+          this.currentVersion = appendResult.version;
+          return localResult;
+        } catch (error: unknown) {
+          this.corrupted = true;
+          const cause = error instanceof Error ? error.message : String(error);
+          throw new BTreeConcurrencyError(
+            `Local apply failure after successful append: instance is permanently corrupted. Discard and create a new instance. Cause: ${cause}`,
+          );
         }
-        const localResult = applyMutationLocal(
-          this.tree, mutation, () => { this.initSeen = true; },
-        ) as MutationResult<TKey, TValue, TMutation>;
-        this.currentVersion = appendResult.version;
-        return localResult;
       }
     }
     throw new BTreeConcurrencyError(

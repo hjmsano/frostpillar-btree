@@ -146,7 +146,19 @@ void test('sync throws BTreeConcurrencyError when replay throws mid-batch (runti
 
   await assert.rejects(async (): Promise<void> => {
     await tree.sync();
-  }, BTreeConcurrencyError);
+  }, (error: unknown): boolean => {
+    assert.ok(error instanceof BTreeConcurrencyError, 'must be BTreeConcurrencyError');
+    // The wrapped error must include the original error's message for debugging (spec 6.3).
+    assert.ok(
+      error.message.includes('Replay failure'),
+      `must include replay failure prefix, got: ${error.message}`,
+    );
+    assert.ok(
+      error.message.length > 'Replay failure:'.length + 30,
+      `must include original cause detail, got: ${error.message}`,
+    );
+    return true;
+  });
 
   // currentVersion must remain at 0 — the failed sync must not advance the version
   // eslint-disable-next-line @typescript-eslint/dot-notation -- testing internal state after error

@@ -340,7 +340,8 @@ The `putMany`, `deleteRange`, and `clear` mutation types MUST be validated durin
 - `init` mutations MUST NOT modify tree state (no-op for the local tree).
 - Comparator consistency (`compareKeys`) remains the caller's responsibility; it cannot be serialized into the fingerprint.
 - If a mutation throws at runtime during replay (after batch validation succeeds), the coordinator MUST throw `BTreeConcurrencyError` and permanently mark the instance as corrupted. All subsequent operations on a corrupted instance MUST throw `BTreeConcurrencyError`. Callers MUST discard the instance and create a new one to recover.
-- Any inner exception raised by tree operations during replay MUST be wrapped and surfaced as `BTreeConcurrencyError`. `BTreeValidationError` or `BTreeInvariantError` MUST NOT propagate out of `sync`.
+- Any inner exception raised by tree operations during replay MUST be wrapped and surfaced as `BTreeConcurrencyError`, including the original error's message. `BTreeValidationError` or `BTreeInvariantError` MUST NOT propagate out of `sync`.
+- If local application of a mutation throws after the mutation has been successfully appended to the store, the coordinator MUST immediately mark the instance as corrupted and throw `BTreeConcurrencyError` wrapping the original error. The instance MUST NOT allow any subsequent operations (including reads) against the potentially broken tree state.
 
 `put` returns a log-derived `EntryId`; after synchronization, that ID MAY be used across instances backed by the same shared store.
 
