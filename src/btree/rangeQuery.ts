@@ -12,6 +12,19 @@ import {
   upperBoundInLeaf,
 } from './navigation.js';
 
+export function isEmptyRange<TKey>(
+  compare: (a: TKey, b: TKey) => number,
+  startKey: TKey,
+  endKey: TKey,
+  options?: RangeBounds,
+): boolean {
+  const cmp = compare(startKey, endKey);
+  if (cmp > 0) return true;
+  const lowerExclusive = options?.lowerBound === 'exclusive';
+  const upperExclusive = options?.upperBound === 'exclusive';
+  return lowerExclusive && upperExclusive && cmp === 0;
+}
+
 interface RangeCursor<TKey, TValue> {
   leaf: LeafNode<TKey, TValue>;
   index: number;
@@ -28,14 +41,10 @@ const initRangeCursor = <TKey, TValue>(
   if (state.entryCount === 0) return null;
 
   const compare = state.compareKeys;
-  const boundCompared = compare(startKey, endKey);
-  if (boundCompared > 0) return null;
+  if (isEmptyRange(compare, startKey, endKey, options)) return null;
 
   const lowerExclusive = options?.lowerBound === 'exclusive';
   const upperExclusive = options?.upperBound === 'exclusive';
-
-  if (lowerExclusive && upperExclusive && boundCompared === 0) return null;
-
   const startSeq = lowerExclusive ? Number.MAX_SAFE_INTEGER : 0;
   const leaf = findLeafForKey(state, startKey, startSeq);
   const index = lowerExclusive

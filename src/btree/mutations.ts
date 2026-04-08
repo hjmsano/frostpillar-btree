@@ -207,14 +207,17 @@ export const removeEntryById = <TKey, TValue>(
   state: BTreeState<TKey, TValue>,
   entryId: EntryId,
 ): BTreeEntry<TKey, TValue> | null => {
-  const userKey = state.entryKeys!.get(entryId);
+  if (state.entryKeys === null) {
+    throw new BTreeInvariantError('entryKeys lookup map is not enabled on this tree.');
+  }
+  const userKey = state.entryKeys.get(entryId);
   if (userKey === undefined) return null;
   const found = findLeafEntryBySequence(state, userKey, entryId);
   if (found === null) return null;
   const entry = leafEntryAt(found.leaf, found.index);
   leafRemoveAt(found.leaf, found.index);
   state.entryCount -= 1;
-  state.entryKeys!.delete(entryId);
+  state.entryKeys.delete(entryId);
   if (found.index === 0 && leafEntryCount(found.leaf) > 0 && found.leaf.parent !== null) {
     updateMinKeyInAncestors(found.leaf);
   }
@@ -228,7 +231,10 @@ export const peekEntryById = <TKey, TValue>(
   state: BTreeState<TKey, TValue>,
   entryId: EntryId,
 ): BTreeEntry<TKey, TValue> | null => {
-  const userKey = state.entryKeys!.get(entryId);
+  if (state.entryKeys === null) {
+    throw new BTreeInvariantError('entryKeys lookup map is not enabled on this tree.');
+  }
+  const userKey = state.entryKeys.get(entryId);
   if (userKey === undefined) return null;
   const found = findLeafEntryBySequence(state, userKey, entryId);
   if (found === null) return null;
@@ -241,7 +247,10 @@ export const updateEntryById = <TKey, TValue>(
   entryId: EntryId,
   newValue: TValue,
 ): BTreeEntry<TKey, TValue> | null => {
-  const userKey = state.entryKeys!.get(entryId);
+  if (state.entryKeys === null) {
+    throw new BTreeInvariantError('entryKeys lookup map is not enabled on this tree.');
+  }
+  const userKey = state.entryKeys.get(entryId);
   if (userKey === undefined) return null;
   const found = findLeafEntryBySequence(state, userKey, entryId);
   if (found === null) return null;
@@ -260,11 +269,14 @@ export const putManyEntries = <TKey, TValue>(
   const strictlyAscending = state.duplicateKeys !== 'allow';
   for (let i = 1; i < entries.length; i += 1) {
     const cmp = state.compareKeys(entries[i - 1].key, entries[i].key);
-    if (strictlyAscending ? cmp >= 0 : cmp > 0) {
+    if (cmp > 0) {
+      throw new BTreeValidationError('putMany: entries not in ascending order.');
+    }
+    if (strictlyAscending && cmp === 0) {
       throw new BTreeValidationError(
-        strictlyAscending
-          ? 'putMany: not sorted in strict ascending order.'
-          : 'putMany: not sorted in non-descending order.',
+        state.duplicateKeys === 'reject'
+          ? 'putMany: duplicate key rejected.'
+          : 'putMany: equal keys not allowed in strict mode.',
       );
     }
   }

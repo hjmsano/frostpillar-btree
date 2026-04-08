@@ -36,7 +36,7 @@ void test('throws when append reports applied=false with regressed store version
   }, BTreeConcurrencyError);
 });
 
-void test('does not advance local version when append succeeds but local apply fails', async (): Promise<void> => {
+void test('immediately corrupts instance when append succeeds but local apply fails', async (): Promise<void> => {
   const store = new AtomicMemorySharedTreeStore<number, string>();
   const applyFailMessage = 'intentional comparator failure during local apply';
   const brokenComparatorTree = new ConcurrentInMemoryBTree<number, string>({
@@ -60,10 +60,20 @@ void test('does not advance local version when append succeeds but local apply f
 
   await healthyComparatorTree.put(1, 'one');
 
+  // The local apply failure after successful append must be wrapped as BTreeConcurrencyError
+  // and must include the original error message for debugging.
   await assert.rejects(async (): Promise<void> => {
     await brokenComparatorTree.put(2, 'two');
-  }, new RegExp(applyFailMessage));
+  }, (error: unknown): boolean => {
+    assert.ok(error instanceof BTreeConcurrencyError, 'must be BTreeConcurrencyError');
+    assert.ok(
+      error.message.includes(applyFailMessage),
+      `must include original error message, got: ${error.message}`,
+    );
+    return true;
+  });
 
+  // The healthy instance still works — the store-side mutation was appended successfully.
   const healthySnapshot = await healthyComparatorTree.snapshot();
   assert.equal(healthySnapshot.length, 2);
   assert.equal(healthySnapshot[0].key, 1);
@@ -71,9 +81,15 @@ void test('does not advance local version when append succeeds but local apply f
   assert.equal(healthySnapshot[1].key, 2);
   assert.equal(healthySnapshot[1].value, 'two');
 
+  // The broken instance is immediately corrupted — no need for a second operation to detect it.
   await assert.rejects(async (): Promise<void> => {
     await brokenComparatorTree.snapshot();
-  }, new RegExp(applyFailMessage));
+  }, BTreeConcurrencyError);
+
+  // Writes are also blocked.
+  await assert.rejects(async (): Promise<void> => {
+    await brokenComparatorTree.put(3, 'three');
+  }, BTreeConcurrencyError);
 });
 
 void test('throws when append returns non-bigint version', async (): Promise<void> => {

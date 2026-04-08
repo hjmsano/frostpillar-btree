@@ -437,6 +437,8 @@ copy.put(99, 'new');
 tree.hasKey(99); // false — original is unaffected
 ```
 
+Note: `EntryId` values are reassigned in the clone — IDs from the source tree are not valid for the clone.
+
 **`toJSON()` / `fromJSON()`** -- serialize and reconstruct:
 
 ```ts
@@ -756,6 +758,23 @@ try {
 
 ---
 
+#### Shared Store Security Assumptions
+
+`ConcurrentInMemoryBTree` assumes the shared store is **trusted**. It does not defend against a store that returns maliciously crafted or arbitrarily large mutation payloads.
+
+**Trust boundary:**
+- The store is under your control or the control of your application.
+- All instances sharing a store must use identical configuration (enforced via config fingerprint on the first write, but only when an `init` mutation is present in the replayed batch).
+- Mutations are structurally validated before replay, but semantic correctness (e.g., key type consistency) is the caller's responsibility.
+
+**Hardening recommendations for shared or multi-tenant deployments:**
+- Do not expose `append` or `getLogEntriesSince` to untrusted clients without an authorization layer.
+- Apply size limits to stored mutation payloads at the store level before they reach `ConcurrentInMemoryBTree`.
+- Use `maxSyncMutationsPerBatch` to cap the number of mutations applied per sync call (default: 100,000).
+- If a `sync()` throws `BTreeConcurrencyError` due to a replay failure, the instance is permanently poisoned. Discard it and create a new one.
+
+---
+
 ## API Reference
 
 ### InMemoryBTree
@@ -805,18 +824,21 @@ new InMemoryBTree<TKey, TValue>(config: InMemoryBTreeConfig<TKey>)
 
 ### ConcurrentInMemoryBTree
 
-Exposes a subset of `InMemoryBTree` methods as async equivalents returning `Promise`. Writes coordinate through the shared store; reads sync before returning when `readMode` is `'strong'` (the default). When `readMode` is `'local'`, reads execute against the local tree without syncing. Methods such as `putMany`, iterators, `clear`, `clone`, `deleteRange`, and `toJSON`/`fromJSON` are not yet available on the concurrent wrapper.
+Exposes `InMemoryBTree` methods as async equivalents returning `Promise`. Writes coordinate through the shared store; reads sync before returning when `readMode` is `'strong'` (the default). When `readMode` is `'local'`, reads execute against the local tree without syncing.
 
 | Method               | Signature                                                                                      | Description                                                   |
 | -------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | `sync`               | `() => Promise<void>`                                                                          | Fetch and apply the latest log entries from the shared store. |
 | `put`                | `(key: TKey, value: TValue) => Promise<EntryId>`                                               | Insert with optimistic concurrency.                           |
+| `putMany`            | `(entries: readonly { key: TKey; value: TValue }[]) => Promise<EntryId[]>`                     | Batch insert with optimistic concurrency.                     |
 | `remove`             | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                     | Remove the first matching entry by key.                       |
 | `removeById`         | `(entryId: EntryId) => Promise<BTreeEntry<TKey, TValue> \| null>`                              | Remove a specific entry by ID.                                |
 | `peekById`           | `(entryId: EntryId) => Promise<BTreeEntry<TKey, TValue> \| null>`                              | Look up an entry by ID (syncs first).                         |
 | `updateById`         | `(entryId: EntryId, value: TValue) => Promise<BTreeEntry<TKey, TValue> \| null>`               | Update an entry by ID with optimistic concurrency.            |
 | `popFirst`           | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                              | Remove and return the smallest entry.                         |
 | `popLast`            | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                              | Remove and return the largest entry.                          |
+| `deleteRange`        | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => Promise<number>`                     | Delete entries in range with optimistic concurrency.          |
+| `clear`              | `() => Promise<void>`                                                                          | Remove all entries with optimistic concurrency.               |
 | `peekFirst`          | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                              | Return the smallest entry (syncs first).                      |
 | `peekLast`           | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                              | Return the largest entry (syncs first).                       |
 | `findFirst`          | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                     | Return the first entry matching key (syncs first).            |
@@ -828,10 +850,19 @@ Exposes a subset of `InMemoryBTree` methods as async equivalents returning `Prom
 | `nextHigherKey`      | `(key: TKey) => Promise<TKey \| null>`                                                         | Next key strictly greater (syncs first).                      |
 | `nextLowerKey`       | `(key: TKey) => Promise<TKey \| null>`                                                         | Next key strictly less (syncs first).                         |
 | `getPairOrNextLower` | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                     | Exact match or next lower (syncs first).                      |
+| `entries`            | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                    | Return all entries as array (syncs first).                    |
+| `entriesReversed`    | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                    | Return all entries in reverse as array (syncs first).         |
+| `keys`               | `() => Promise<TKey[]>`                                                                        | Return all keys as array (syncs first).                       |
+| `values`             | `() => Promise<TValue[]>`                                                                      | Return all values as array (syncs first).                     |
+| `forEach`            | `(callback: (entry: BTreeEntry<TKey, TValue>) => void) => Promise<void>`                      | Iterate all entries (syncs first).                            |
 | `snapshot`           | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                    | Return all entries (syncs first).                             |
 | `size`               | `() => Promise<number>`                                                                        | Return entry count (syncs first).                             |
 | `getStats`           | `() => Promise<BTreeStats>`                                                                    | Return structural statistics (syncs first).                   |
 | `assertInvariants`   | `() => Promise<void>`                                                                          | Assert structural integrity (syncs first).                    |
+| `clone`              | `() => Promise<InMemoryBTree<TKey, TValue>>`                                                   | Return an independent local copy (syncs first).               |
+| `toJSON`             | `() => Promise<BTreeJSON<TKey, TValue>>`                                                       | Serialize to JSON (syncs first).                              |
+| `fromJSON` (static)  | `(json: BTreeJSON<TKey, TValue>, compareKeys: KeyComparator<TKey>) => InMemoryBTree<TKey, TValue>` | Deserialize from JSON (returns local tree).                |
+| `[Symbol.asyncIterator]` | `() => AsyncIterableIterator<BTreeEntry<TKey, TValue>>`                                    | Async iteration over all entries (syncs first).               |
 
 **Constructor:**
 
@@ -855,7 +886,7 @@ new ConcurrentInMemoryBTree<TKey, TValue>(config: ConcurrentInMemoryBTreeConfig<
 | `ConcurrentInMemoryBTreeConfig<TKey, TValue>` | Extends `InMemoryBTreeConfig<TKey>` with `store: SharedTreeStore<TKey, TValue>`, `maxRetries?: number`, `maxSyncMutationsPerBatch?: number`, and `readMode?: ReadMode`.             |
 | `SharedTreeStore<TKey, TValue>`               | Interface with `getLogEntriesSince(version)` and `append(expectedVersion, mutations)`.                                                                                              |
 | `SharedTreeLog<TKey, TValue>`                 | `{ version: bigint; mutations: BTreeMutation<TKey, TValue>[] }`                                                                                                                     |
-| `BTreeMutation<TKey, TValue>`                 | Discriminated union: `init`, `put`, `remove`, `removeById`, `updateById`, `popFirst`, `popLast`.                                                                                    |
+| `BTreeMutation<TKey, TValue>`                 | Discriminated union: `init`, `put`, `putMany`, `remove`, `removeById`, `updateById`, `popFirst`, `popLast`, `deleteRange`, `clear`.                                                |
 | `BTreeValidationError`                        | Error thrown for comparator or config violations.                                                                                                                                   |
 | `BTreeInvariantError`                         | Error thrown for tree structural integrity violations.                                                                                                                              |
 | `BTreeConcurrencyError`                       | Error thrown for concurrency conflicts or store contract violations.                                                                                                                |

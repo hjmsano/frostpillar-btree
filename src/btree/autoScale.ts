@@ -10,6 +10,8 @@ import {
   type InMemoryBTreeConfig,
 } from './types.js';
 
+export const minOccupancy = (max: number): number => Math.ceil(max / 2);
+
 const AUTO_SCALE_TIERS: readonly { readonly threshold: number; readonly maxLeaf: number; readonly maxBranch: number }[] = [
   { threshold: 0,         maxLeaf: 32,  maxBranch: 32 },
   { threshold: 1_000,     maxLeaf: 64,  maxBranch: 64 },
@@ -66,8 +68,8 @@ export const createInitialState = <TKey, TValue>(
     maxLeafEntries,
     maxBranchChildren,
     duplicateKeys,
-    minLeafEntries: Math.ceil(maxLeafEntries / 2),
-    minBranchChildren: Math.ceil(maxBranchChildren / 2),
+    minLeafEntries: minOccupancy(maxLeafEntries),
+    minBranchChildren: minOccupancy(maxBranchChildren),
     root: emptyLeaf,
     leftmostLeaf: emptyLeaf,
     rightmostLeaf: emptyLeaf,
@@ -85,11 +87,11 @@ export const maybeAutoScale = <TKey, TValue>(state: BTreeState<TKey, TValue>): v
   const { maxLeaf, maxBranch } = computeAutoScaleTier(state.entryCount);
   if (maxLeaf > state.maxLeafEntries) {
     state.maxLeafEntries = maxLeaf;
-    state.minLeafEntries = Math.ceil(maxLeaf / 2);
+    state.minLeafEntries = minOccupancy(maxLeaf);
   }
   if (maxBranch > state.maxBranchChildren) {
     state.maxBranchChildren = maxBranch;
-    state.minBranchChildren = Math.ceil(maxBranch / 2);
+    state.minBranchChildren = minOccupancy(maxBranch);
   }
   state._nextAutoScaleThreshold = computeNextAutoScaleThreshold(state.entryCount);
 };
@@ -123,6 +125,6 @@ export const applyAutoScaleCapacitySnapshot = <TKey, TValue>(
 
   state.maxLeafEntries = normalizedLeaf;
   state.maxBranchChildren = normalizedBranch;
-  state.minLeafEntries = Math.ceil(normalizedLeaf / 2);
-  state.minBranchChildren = Math.ceil(normalizedBranch / 2);
+  state.minLeafEntries = minOccupancy(normalizedLeaf);
+  state.minBranchChildren = minOccupancy(normalizedBranch);
 };

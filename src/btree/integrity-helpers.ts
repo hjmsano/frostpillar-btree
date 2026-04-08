@@ -33,7 +33,7 @@ export const compareNodeKeys = <TKey>(
   if (cmp !== 0) {
     return cmp;
   }
-  return leftSeq - rightSeq;
+  return leftSeq < rightSeq ? -1 : leftSeq > rightSeq ? 1 : 0;
 };
 
 const getNodeMaxKey = <TKey, TValue>(

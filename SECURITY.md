@@ -6,6 +6,20 @@
 | ------- | ------------------ |
 | Latest  | :white_check_mark: |
 
+## Shared Store Trust Boundary
+
+`ConcurrentInMemoryBTree` is designed for use with a **trusted** shared store. The following threats are out of scope for the library itself and must be handled at the application or infrastructure layer:
+
+| Threat | Recommendation |
+|--------|----------------|
+| Untrusted store returning malformed mutations | Validate and sanitize store payloads before they reach the library |
+| Oversized mutation batches causing resource exhaustion | Set `maxSyncMutationsPerBatch` and enforce store-level size limits |
+| Replay poisoning via incompatible config mutations | Ensure all instances sharing a store use identical configuration |
+| Instance corruption after replay failure | Treat a `BTreeConcurrencyError` from `sync()` as fatal; discard and recreate the instance |
+| Multi-tenant data isolation | Enforce isolation at the store layer; the library does not namespace or isolate tenants |
+
+For multi-tenant or publicly accessible deployments, the shared store's `append` and `getLogEntriesSince` endpoints must be protected with appropriate authentication and authorization before exposing them.
+
 ## Reporting a Vulnerability
 
 If you discover a security vulnerability in this project, please report it responsibly.

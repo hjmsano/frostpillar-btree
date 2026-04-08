@@ -1,14 +1,17 @@
-import type { EntryId, InMemoryBTreeConfig } from '../InMemoryBTree.js';
+import type { EntryId, InMemoryBTreeConfig, RangeBounds } from '../InMemoryBTree.js';
 
 
 export type BTreeMutation<TKey, TValue> =
   | { type: 'init'; configFingerprint: string }
   | { type: 'put'; key: TKey; value: TValue }
+  | { type: 'putMany'; entries: readonly { key: TKey; value: TValue }[] }
   | { type: 'remove'; key: TKey }
   | { type: 'removeById'; entryId: EntryId }
   | { type: 'updateById'; entryId: EntryId; value: TValue }
   | { type: 'popFirst' }
-  | { type: 'popLast' };
+  | { type: 'popLast' }
+  | { type: 'deleteRange'; startKey: TKey; endKey: TKey; options?: RangeBounds }
+  | { type: 'clear' };
 
 export interface SharedTreeLog<TKey, TValue> {
   version: bigint;
