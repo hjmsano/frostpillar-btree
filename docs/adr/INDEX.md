@@ -22,6 +22,7 @@
 - [0023: deleteRange and range performance optimizations](./0023_deleterange_and_range_performance_optimizations.md)
 - [0024: Concurrent read throughput and lazy delete rebalance](./0024_concurrent_read_throughput_and_lazy_delete_rebalance.md)
 - [0025: leafInsertAt splice elimination and bulk iteration zero-copy](./0025_leafinsert_and_bulk_iteration_optimizations.md)
+- [0026: Unify public entry exposure via freezeEntry](./0026_unify_entry_exposure_via_freeze_entry.md)
 
 ## Superseded
 

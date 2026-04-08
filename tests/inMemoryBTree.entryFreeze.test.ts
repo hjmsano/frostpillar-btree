@@ -2,8 +2,8 @@
  * Tests that all public API methods return frozen entry objects.
  * Callers MUST NOT be able to mutate properties of returned entries.
  *
- * Covers both toPublicEntry paths (single-entry reads, range) and
- * freezeEntry paths (bulk iteration: entries, snapshot, forEach).
+ * Covers freezeEntry paths: single-entry reads, range, and bulk iteration
+ * (entries, snapshot, forEach).
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -19,7 +19,7 @@ const makeTree = (): InMemoryBTree<number, string> =>
   });
 
 // ===========================================================================
-// toPublicEntry APIs must return frozen entries
+// Single-entry APIs must return frozen entries (via freezeEntry)
 // ===========================================================================
 
 void test('external mutation of findFirst() result is rejected', (): void => {
@@ -208,7 +208,7 @@ void test('external mutation of range() result is rejected', (): void => {
 });
 
 // ===========================================================================
-// Bulk iteration APIs (frozen via freezeEntry)
+// Bulk iteration APIs (frozen via freezeEntry, zero allocation)
 // ===========================================================================
 
 void test('external mutation of entries() result cannot corrupt tree', (): void => {

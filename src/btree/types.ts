@@ -70,23 +70,9 @@ export interface LeafEntry<TKey, TValue> {
 }
 
 /**
- * Shallow-copies a `LeafEntry` into a frozen `BTreeEntry` for safe public API return.
- * Used by single-entry read APIs to prevent callers from holding live internal references
- * and from mutating returned entry properties.
- */
-export const toPublicEntry = <TKey, TValue>(
-  entry: LeafEntry<TKey, TValue>,
-): BTreeEntry<TKey, TValue> =>
-  Object.freeze({
-    entryId: entry.entryId,
-    key: entry.key,
-    value: entry.value,
-  });
-
-/**
- * Freezes and returns an internal entry for safe exposure via bulk read APIs.
- * Cheaper than toPublicEntry (no allocation) but prevents external mutation.
+ * Freezes and returns an internal entry for safe exposure via the public API.
  * Idempotent: re-freezing an already-frozen object is a no-op in V8.
+ * All entries are frozen at creation via createEntry, so this is a zero-allocation cast.
  */
 export const freezeEntry = <TKey, TValue>(
   entry: LeafEntry<TKey, TValue>,

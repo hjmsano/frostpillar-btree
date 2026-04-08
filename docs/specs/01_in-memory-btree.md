@@ -1,7 +1,7 @@
 # Spec: B+ Tree Library Contract
 
 Status: Active
-Version: 2.29
+Version: 2.30
 Last Updated: 2026-04-08
 
 ## 1. Scope
@@ -410,11 +410,11 @@ Leaf single-element insert (`leafInsertAt`) and remove (`leafRemoveAt`) MUST shi
 
 `computeAutoScaleTier` MUST NOT allocate a new object on each call; it MUST return a reference to an existing tier descriptor.
 
-The internal leaf storage type (`LeafEntry`) MUST be structurally identical to the public `BTreeEntry<TKey, TValue>` type (`{ entryId: EntryId; key: TKey; value: TValue }`). `updateEntryById` MUST replace the entry object in the leaf array rather than mutating it in place, ensuring that previously returned references remain stable. Single-entry read operations (`peekFirst`, `peekLast`, `findFirst`, `findLast`, `getPairOrNextLower`, `remove`, `removeById`, `peekById`, `updateById`, `popFirst`, `popLast`, `range`) MUST return frozen shallow copies via `toPublicEntry`; callers MUST NOT be able to mutate properties of returned entry objects. Bulk iteration operations (`entries`, `entriesReversed`, `forEach`, `forEachRange`, `snapshot`) MAY return internal entry references directly, since entry objects are never mutated after creation. All entry objects exposed through the public API MUST be frozen (`Object.isFrozen(entry) === true`), regardless of whether they are shallow copies or direct internal references.
+The internal leaf storage type (`LeafEntry`) MUST be structurally identical to the public `BTreeEntry<TKey, TValue>` type (`{ entryId: EntryId; key: TKey; value: TValue }`). `updateEntryById` MUST replace the entry object in the leaf array rather than mutating it in place, ensuring that previously returned references remain stable. All public API operations MUST expose entries via `freezeEntry`; callers MUST NOT be able to mutate properties of returned entry objects. `freezeEntry` calls `Object.freeze` (idempotent on already-frozen objects) and casts the type — no new object is allocated. All entry objects exposed through the public API MUST be frozen (`Object.isFrozen(entry) === true`).
 
 `deleteRange` rebalance loops MUST include a safety-guard iteration bound (`minLeafEntries + 4`) to prevent theoretical infinite loops. Normal convergence takes at most `minLeafEntries + 2` iterations; the extra margin accounts for unforeseen edge cases.
 
-`rangeQueryPublicEntries` MUST use a bulk-copy fast-path for non-boundary leaves: when the last entry in a leaf is within the query range, all remaining entries in that leaf MUST be pushed without per-entry comparator calls. For boundary leaves, `rangeQueryPublicEntries` MUST use binary search (`upperBoundInLeaf` / `lowerBoundInLeaf`) to locate the end position instead of linear scan. `range()` MUST produce public entries (`toPublicEntry`) in a single pass during collection, without a separate post-processing `.map()` pass over the result array.
+`rangeQueryPublicEntries` MUST use a bulk-copy fast-path for non-boundary leaves: when the last entry in a leaf is within the query range, all remaining entries in that leaf MUST be pushed without per-entry comparator calls. For boundary leaves, `rangeQueryPublicEntries` MUST use binary search (`upperBoundInLeaf` / `lowerBoundInLeaf`) to locate the end position instead of linear scan. `range()` MUST produce public entries (`freezeEntry`) in a single pass during collection, without a separate post-processing `.map()` pass over the result array.
 
 `deleteRangeEntries` MUST use a whole-leaf fast-path for non-boundary leaves: when the last entry in the current leaf is within the deletion range, all entries from the current index to the end of the leaf MUST be removed without per-entry comparator calls. For boundary leaves (where the range ends mid-leaf), `deleteRangeEntries` MUST use binary search (`upperBoundInLeaf` / `lowerBoundInLeaf`) to locate the end position instead of linear scan.
 

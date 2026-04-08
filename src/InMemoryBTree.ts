@@ -40,7 +40,6 @@ import {
   freezeEntry,
   leafEntryAt,
   leafEntryCount,
-  toPublicEntry,
   type BTreeEntry,
   type BTreeState,
   type BTreeStats,
@@ -90,7 +89,7 @@ export class InMemoryBTree<TKey, TValue> {
   public remove(key: TKey): BTreeEntry<TKey, TValue> | null {
     const entry = removeFirstMatchingEntry(this.state, key);
     if (entry === null) return null;
-    return toPublicEntry(entry);
+    return freezeEntry(entry);
   }
 
   public removeById(entryId: EntryId): BTreeEntry<TKey, TValue> | null {
@@ -99,7 +98,7 @@ export class InMemoryBTree<TKey, TValue> {
     }
     const entry = removeEntryById(this.state, entryId);
     if (entry === null) return null;
-    return toPublicEntry(entry);
+    return freezeEntry(entry);
   }
 
   public peekById(entryId: EntryId): BTreeEntry<TKey, TValue> | null {
@@ -108,7 +107,7 @@ export class InMemoryBTree<TKey, TValue> {
     }
     const entry = peekEntryById(this.state, entryId);
     if (entry === null) return null;
-    return toPublicEntry(entry);
+    return freezeEntry(entry);
   }
 
   public updateById(
@@ -120,20 +119,20 @@ export class InMemoryBTree<TKey, TValue> {
     }
     const entry = updateEntryById(this.state, entryId, value);
     if (entry === null) return null;
-    return toPublicEntry(entry);
+    return freezeEntry(entry);
   }
 
   public popFirst(): BTreeEntry<TKey, TValue> | null {
     const entry = popFirstEntry(this.state);
     if (entry === null) return null;
-    return toPublicEntry(entry);
+    return freezeEntry(entry);
   }
 
   public peekFirst(): BTreeEntry<TKey, TValue> | null {
     if (this.state.entryCount === 0) {
       return null;
     }
-    return toPublicEntry(leafEntryAt(this.state.leftmostLeaf, 0));
+    return freezeEntry(leafEntryAt(this.state.leftmostLeaf, 0));
   }
 
   public peekLast(): BTreeEntry<TKey, TValue> | null {
@@ -141,13 +140,13 @@ export class InMemoryBTree<TKey, TValue> {
       return null;
     }
     const leaf = this.state.rightmostLeaf;
-    return toPublicEntry(leafEntryAt(leaf, leafEntryCount(leaf) - 1));
+    return freezeEntry(leafEntryAt(leaf, leafEntryCount(leaf) - 1));
   }
 
   public popLast(): BTreeEntry<TKey, TValue> | null {
     const entry = popLastEntry(this.state);
     if (entry === null) return null;
-    return toPublicEntry(entry);
+    return freezeEntry(entry);
   }
 
   public clear(): void {
@@ -177,13 +176,13 @@ export class InMemoryBTree<TKey, TValue> {
   public findFirst(key: TKey): BTreeEntry<TKey, TValue> | null {
     const found = findFirstMatchingUserKey(this.state, key);
     if (found === null) return null;
-    return toPublicEntry(leafEntryAt(found.leaf, found.index));
+    return freezeEntry(leafEntryAt(found.leaf, found.index));
   }
 
   public findLast(key: TKey): BTreeEntry<TKey, TValue> | null {
     const found = findLastMatchingUserKey(this.state, key);
     if (found === null) return null;
-    return toPublicEntry(leafEntryAt(found.leaf, found.index));
+    return freezeEntry(leafEntryAt(found.leaf, found.index));
   }
 
   public nextHigherKey(key: TKey): TKey | null {
@@ -196,7 +195,7 @@ export class InMemoryBTree<TKey, TValue> {
   public getPairOrNextLower(key: TKey): BTreeEntry<TKey, TValue> | null {
     const found = findPairOrNextLower(this.state, key);
     if (found === null) return null;
-    return toPublicEntry(leafEntryAt(found.leaf, found.index));
+    return freezeEntry(leafEntryAt(found.leaf, found.index));
   }
 
   public count(startKey: TKey, endKey: TKey, options?: RangeBounds): number {

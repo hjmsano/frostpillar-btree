@@ -2,7 +2,6 @@ import {
   freezeEntry,
   leafEntryAt,
   leafEntryCount,
-  toPublicEntry,
   type BTreeEntry,
   type BTreeState,
   type LeafNode,
@@ -148,7 +147,7 @@ const allocateRangeOutput = <TKey, TValue>(
   return [];
 };
 
-/** Append entries from a leaf slice to the output array, applying toPublicEntry inline. */
+/** Append entries from a leaf slice to the output array via freezeEntry. */
 const appendLeafSlicePublic = <TKey, TValue>(
   leaf: LeafNode<TKey, TValue>,
   from: number,
@@ -159,11 +158,11 @@ const appendLeafSlicePublic = <TKey, TValue>(
 ): number => {
   if (useIndexed) {
     for (let i = from; i < to; i += 1) {
-      output[writeIdx++] = toPublicEntry(leafEntryAt(leaf, i));
+      output[writeIdx++] = freezeEntry(leafEntryAt(leaf, i));
     }
   } else {
     for (let i = from; i < to; i += 1) {
-      output.push(toPublicEntry(leafEntryAt(leaf, i)));
+      output.push(freezeEntry(leafEntryAt(leaf, i)));
     }
   }
   return writeIdx;
@@ -221,7 +220,7 @@ const collectPublicEntries = <TKey, TValue>(
   }
 };
 
-/** Single-pass range query that produces public entries (with toPublicEntry) inline. */
+/** Single-pass range query that produces public entries (via freezeEntry) inline. */
 export const rangeQueryPublicEntries = <TKey, TValue>(
   state: BTreeState<TKey, TValue>,
   startKey: TKey,
