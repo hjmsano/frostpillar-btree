@@ -102,8 +102,12 @@ const tryBorrowFromLeafSibling = <TKey, TValue>(
     const borrowed = leafShiftEntry(rightSibling);
     if (borrowed === undefined)
       throw new BTreeInvariantError('right leaf borrow failed');
+    const leafWasEmpty = leafEntryCount(leaf) === 0;
     leaf.entries.push(borrowed);
     writeMinKeyTo<TKey, TValue>(rightSibling, parent.keys[leafIndex + 1]);
+    // An emptied leaf (reachable under the lazy delete policy) gets a new
+    // minimum from the borrowed entry — ancestor cached keys must follow.
+    if (leafWasEmpty) updateMinKeyInAncestors(leaf);
     return true;
   }
   if (
@@ -137,8 +141,13 @@ const mergeLeafWithSibling = <TKey, TValue>(
     return;
   }
   if (rightSibling !== null) {
+    const leafWasEmpty = leafEntryCount(leaf) === 0;
     mergeLeafEntries(leaf, rightSibling);
     detachLeafFromChain(state, rightSibling);
+    // An emptied leaf (reachable under the lazy delete policy) inherits its
+    // minimum from the absorbed sibling — refresh ancestor cached keys while
+    // leafIndex is still valid, before the sibling slot is removed.
+    if (leafWasEmpty) updateMinKeyInAncestors(leaf);
     removeChildFromBranch(parent, leafIndex + 1);
     rebalanceAfterBranchRemoval(state, parent);
     return;

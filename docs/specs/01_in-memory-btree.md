@@ -1,8 +1,8 @@
 # Spec: B+ Tree Library Contract
 
 Status: Active
-Version: 2.30
-Last Updated: 2026-04-08
+Version: 2.31
+Last Updated: 2026-07-02
 
 ## 1. Scope
 
@@ -102,6 +102,7 @@ Regular mutation/read paths MUST NOT perform eager comparator finiteness validat
 - `deleteRebalancePolicy` defaults to `'standard'`. Valid values are `'standard'` and `'lazy'`. Invalid values MUST throw `BTreeValidationError`.
 - When `'standard'` (default): delete operations trigger rebalancing at the normal `minLeafEntries` threshold.
 - When `'lazy'`: delete operations (both `remove` and `deleteRange`) use a relaxed rebalance threshold of `Math.ceil(minLeafEntries / 4)` (clamped to a minimum of `1`). This reduces merge churn during mass deletion workloads, especially under `autoScale` where the dynamic minimum can be high. The relaxed threshold is used for the leaf rebalance decision only; branch rebalancing continues to use the standard threshold. `assertInvariants()` MUST accept leaves that satisfy the relaxed threshold when `deleteRebalancePolicy` is `'lazy'`.
+- When a delete operation empties a leaf entirely (possible under `'lazy'` for `remove`/`removeById`/`popFirst`, and under any policy for `deleteRange`) and rebalancing refills that leaf by borrowing from or merging with its right sibling, ancestor cached minimum keys MUST be refreshed so the tree continues to satisfy the [integrity contract](#5-tree-integrity-contract) (branch cached keys match child minimum keys). This refresh MUST happen inside the shared leaf rebalance path, not per calling operation.
 
 ### 4.2 Operations
 
