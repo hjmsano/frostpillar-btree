@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.8](https://github.com/hjmsano/frostpillar-btree/compare/v0.2.7...v0.2.8) (2026-07-02)
+
+
+### Bug Fixes
+
+* refresh ancestor cached min keys when an emptied leaf is refilled ([16e7239](https://github.com/hjmsano/frostpillar-btree/commit/16e72399d614992e81b8c3244ac3e77df633fc8e))
+* refresh ancestor cached min keys when an emptied leaf is refilled ([4b268dc](https://github.com/hjmsano/frostpillar-btree/commit/4b268dc2124833d8992b672fa0084ea61f9ce2ff))
+
 ## [0.2.7](https://github.com/hjmsano/frostpillar-btree/compare/v0.2.6...v0.2.7) (2026-04-08)
 
 
