@@ -3,6 +3,7 @@ import {
   type EntryId,
   type RangeBounds,
 } from '../InMemoryBTree.js';
+import { validatePutManyOrder } from '../btree/types.js';
 import type { KeyComparator, DuplicateKeyPolicy } from '../btree/types.js';
 import { BTreeValidationError } from '../errors.js';
 import type { BTreeMutation } from './types.js';
@@ -126,22 +127,7 @@ export const createPutManyEvaluator = <TKey, TValue>(
   return (
     tree,
   ): { type: 'putMany'; entries: readonly { key: TKey; value: TValue }[] } => {
-    const strictlyAscending = duplicateKeys !== 'allow';
-    for (let i = 1; i < entries.length; i += 1) {
-      const cmp = compareKeys(entries[i - 1].key, entries[i].key);
-      if (cmp > 0) {
-        throw new BTreeValidationError(
-          'putMany: entries not in ascending order.',
-        );
-      }
-      if (strictlyAscending && cmp === 0) {
-        throw new BTreeValidationError(
-          duplicateKeys === 'reject'
-            ? 'putMany: duplicate key rejected.'
-            : 'putMany: equal keys not allowed in strict mode.',
-        );
-      }
-    }
+    validatePutManyOrder(entries, compareKeys, duplicateKeys);
     if (duplicateKeys === 'reject') {
       for (const entry of entries) {
         if (tree.hasKey(entry.key)) {
