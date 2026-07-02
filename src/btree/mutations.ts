@@ -20,6 +20,7 @@ import {
   leafPopEntry,
   leafRemoveAt,
   leafShiftEntry,
+  validatePutManyOrder,
   type BTreeEntry,
   type BTreeState,
   type EntryId,
@@ -203,23 +204,7 @@ export const putManyEntries = <TKey, TValue>(
 ): EntryId[] => {
   if (entries.length === 0) return [];
 
-  // Validate sort order upfront
-  const strictlyAscending = state.duplicateKeys !== 'allow';
-  for (let i = 1; i < entries.length; i += 1) {
-    const cmp = state.compareKeys(entries[i - 1].key, entries[i].key);
-    if (cmp > 0) {
-      throw new BTreeValidationError(
-        'putMany: entries not in ascending order.',
-      );
-    }
-    if (strictlyAscending && cmp === 0) {
-      throw new BTreeValidationError(
-        state.duplicateKeys === 'reject'
-          ? 'putMany: duplicate key rejected.'
-          : 'putMany: equal keys not allowed in strict mode.',
-      );
-    }
-  }
+  validatePutManyOrder(entries, state.compareKeys, state.duplicateKeys);
 
   // Non-empty tree: cursor-optimized sequential put
   if (state.entryCount > 0) {

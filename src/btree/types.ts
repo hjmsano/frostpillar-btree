@@ -49,6 +49,35 @@ export const normalizeDeleteRebalancePolicy = (
   return value;
 };
 
+/**
+ * Validates that putMany input is sorted for the given duplicate-key policy:
+ * non-descending for 'allow', strictly ascending for 'reject' and 'replace'.
+ * Shared by the local tree and the concurrent evaluator so both fail with
+ * identical errors before any state (or store log) is touched.
+ */
+export const validatePutManyOrder = <TKey, TValue>(
+  entries: readonly { key: TKey; value: TValue }[],
+  compareKeys: KeyComparator<TKey>,
+  duplicateKeys: DuplicateKeyPolicy,
+): void => {
+  const strictlyAscending = duplicateKeys !== 'allow';
+  for (let i = 1; i < entries.length; i += 1) {
+    const cmp = compareKeys(entries[i - 1].key, entries[i].key);
+    if (cmp > 0) {
+      throw new BTreeValidationError(
+        'putMany: entries not in ascending order.',
+      );
+    }
+    if (strictlyAscending && cmp === 0) {
+      throw new BTreeValidationError(
+        duplicateKeys === 'reject'
+          ? 'putMany: duplicate key rejected.'
+          : 'putMany: equal keys not allowed in strict mode.',
+      );
+    }
+  }
+};
+
 export type EntryId = number & { readonly __brand: 'EntryId' };
 
 export interface BTreeEntry<TKey, TValue> {
@@ -62,7 +91,7 @@ export interface NodeKey<TKey> {
   sequence: number;
 }
 
-/** Internal mutable entry stored in leaf nodes. */
+/** Internal entry stored in leaf nodes. Frozen at creation via createEntry. */
 export interface LeafEntry<TKey, TValue> {
   entryId: EntryId;
   key: TKey;
