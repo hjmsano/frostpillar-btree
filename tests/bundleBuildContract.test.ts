@@ -13,11 +13,14 @@ interface TsConfigFile {
   readonly compilerOptions?: TsConfigCompilerOptions;
 }
 
-interface PackageExportCondition {
+interface PackageExportTarget {
   readonly types?: string;
-  readonly import?: string;
-  readonly require?: string;
   readonly default?: string;
+}
+
+interface PackageExportCondition {
+  readonly import?: PackageExportTarget;
+  readonly require?: PackageExportTarget;
 }
 
 interface PackageExports {
@@ -81,19 +84,24 @@ void test('package json root exports for hybrid delivery', async (): Promise<voi
   );
 
   assert.equal(
-    packageJson.exports?.['.']?.types,
+    packageJson.exports?.['.']?.import?.types,
     './dist/index.d.ts',
-    'package.json exports["."].types must point to dist/index.d.ts.',
+    'package.json exports["."].import.types must point to dist/index.d.ts.',
   );
   assert.equal(
-    packageJson.exports?.['.']?.import,
+    packageJson.exports?.['.']?.import?.default,
     './dist/index.js',
-    'package.json exports["."].import must point to dist/index.js.',
+    'package.json exports["."].import.default must point to dist/index.js.',
   );
   assert.equal(
-    packageJson.exports?.['.']?.require,
+    packageJson.exports?.['.']?.require?.types,
+    './dist/index.d.cts',
+    'package.json exports["."].require.types must point to CJS-flavored dist/index.d.cts.',
+  );
+  assert.equal(
+    packageJson.exports?.['.']?.require?.default,
     './dist/index.cjs',
-    'package.json exports["."].require must point to dist/index.cjs.',
+    'package.json exports["."].require.default must point to dist/index.cjs.',
   );
 });
 
@@ -101,19 +109,24 @@ void test('package json subpath exports for hybrid delivery', async (): Promise<
   const packageJson = await readJsonFile<PackageJsonShape>('package.json');
 
   assert.equal(
-    packageJson.exports?.['./core']?.types,
+    packageJson.exports?.['./core']?.import?.types,
     './dist/core.d.ts',
-    'package.json exports["./core"].types must point to dist/core.d.ts.',
+    'package.json exports["./core"].import.types must point to dist/core.d.ts.',
   );
   assert.equal(
-    packageJson.exports?.['./core']?.import,
+    packageJson.exports?.['./core']?.import?.default,
     './dist/core.js',
-    'package.json exports["./core"].import must point to dist/core.js.',
+    'package.json exports["./core"].import.default must point to dist/core.js.',
   );
   assert.equal(
-    packageJson.exports?.['./core']?.require,
+    packageJson.exports?.['./core']?.require?.types,
+    './dist/core.d.cts',
+    'package.json exports["./core"].require.types must point to CJS-flavored dist/core.d.cts.',
+  );
+  assert.equal(
+    packageJson.exports?.['./core']?.require?.default,
     './dist/core.cjs',
-    'package.json exports["./core"].require must point to dist/core.cjs.',
+    'package.json exports["./core"].require.default must point to dist/core.cjs.',
   );
 });
 
@@ -127,13 +140,14 @@ void test('package json sideEffects is false for full tree-shaking', async (): P
   );
 });
 
-void test('package json files and build scripts for npm distribution', async (): Promise<void> => {
+void test('package json files for npm distribution', async (): Promise<void> => {
   const packageJson = await readJsonFile<PackageJsonShape>('package.json');
 
   const requiredFiles = [
     'dist/**/*.js',
     'dist/**/*.cjs',
     'dist/**/*.d.ts',
+    'dist/**/*.d.cts',
     'README.md',
     'README-JA.md',
     'LICENSE',
@@ -144,10 +158,15 @@ void test('package json files and build scripts for npm distribution', async ():
       `package.json files must include ${file} for npm distribution.`,
     );
   }
+});
+
+void test('package json build scripts for npm distribution', async (): Promise<void> => {
+  const packageJson = await readJsonFile<PackageJsonShape>('package.json');
+
   assert.equal(
     packageJson.scripts?.build,
-    'rm -rf dist && pnpm build:esm && pnpm build:cjs && pnpm build:types',
-    'package.json build script must clean and run ESM, CJS, and type builds.',
+    'rm -rf dist && pnpm build:esm && pnpm build:cjs && pnpm build:types && pnpm build:types:cjs',
+    'package.json build script must clean and run ESM, CJS, type, and CJS-type builds.',
   );
   assert.equal(
     packageJson.scripts?.['build:esm'],
@@ -163,6 +182,11 @@ void test('package json files and build scripts for npm distribution', async ():
     packageJson.scripts?.['build:types'],
     'tsc --project tsconfig.build.json',
     'package.json build:types script must emit declaration files only.',
+  );
+  assert.equal(
+    packageJson.scripts?.['build:types:cjs'],
+    'node ./scripts/build-cts-types.mjs',
+    'package.json build:types:cjs script must derive CJS-flavored .d.cts declarations.',
   );
   assert.equal(
     packageJson.scripts?.['build:bundle'],
