@@ -1,8 +1,8 @@
 # Spec: Release-Driven CI/CD and Publish
 
 Status: Active
-Version: 2.7
-Last Updated: 2026-04-06
+Version: 2.8
+Last Updated: 2026-07-03
 
 ## 1. Scope
 
@@ -87,8 +87,8 @@ Required auth/permissions:
 
 ## 4. CI Workflow Contract (`.github/workflows/ci.yml`)
 
-- `ci.yml` MUST trigger on push.
-- `ci.yml` MUST include pushes to `main` (no `main` exclusion filter).
+- `ci.yml` MUST trigger on pushes to `main`.
+- `ci.yml` MUST trigger on `pull_request` so external (fork) contributions receive quality checks before merge.
 - `ci.yml` MUST install dependencies with frozen lockfile.
 - `ci.yml` MUST run `pnpm check` (subsumes typecheck, lint, test, and textlint — no separate `pnpm test` step).
 
