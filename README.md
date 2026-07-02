@@ -359,6 +359,8 @@ tree.getPairOrNextLower(10); // { entryId: ..., key: 10, value: 'a' } (exact mat
 
 #### Iterating
 
+> **Note:** Iterators read the live tree. If you mutate the tree during traversal (`entries()`, `entriesReversed()`, `keys()`, `values()`, `forEach`, `for...of`), inclusion and visitation order of in-flight entries are implementation-defined. Take a `snapshot()` first when you need to mutate while traversing.
+
 **`entries()`** -- lazily iterate all entries in ascending key order without allocating a snapshot array:
 
 ```ts
@@ -481,6 +483,24 @@ const tree = new InMemoryBTree<number, string>({
 | `'reject'`            | Throws `BTreeValidationError` if the key already exists.                       | Unique index / set                    |
 | `'allow'`             | Allows multiple entries with the same key, ordered by insertion time.          | Multimap / event log / priority queue |
 
+#### Delete Rebalance Policy
+
+Control how aggressively delete operations rebalance leaves via the `deleteRebalancePolicy` option:
+
+```ts
+const tree = new InMemoryBTree<number, string>({
+  compareKeys: (a, b) => a - b,
+  deleteRebalancePolicy: 'lazy', // default: 'standard'
+});
+```
+
+| Policy                 | Behavior                                                                                                                       | Use case                             |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------ |
+| `'standard'` (default) | Rebalances a leaf as soon as a delete drops it below the minimum occupancy (`ceil(maxLeafEntries / 2)`).                       | Balanced read/write workloads        |
+| `'lazy'`               | Delays rebalancing until a leaf falls below `max(1, ceil(minimum occupancy / 4))`, reducing merge churn during mass deletions. | Mass-deletion workloads, `autoScale` |
+
+The relaxed threshold applies to the leaf rebalance decision only; branch rebalancing always uses the standard threshold. `assertInvariants()` accepts leaves that satisfy the relaxed threshold when the policy is `'lazy'`. The policy is preserved by `clone()` and `toJSON()` / `fromJSON()`.
+
 #### Behavior Notes
 
 - `range(start, end)` is inclusive on both bounds by default. Pass `RangeBounds` to use exclusive bounds. Returns `[]` when `start > end`.
@@ -499,7 +519,7 @@ const tree = new InMemoryBTree<number, string>({
   | 1,000,000+  | 512            | 256               |
 
 - `autoScale` cannot be combined with explicit `maxLeafEntries` or `maxBranchChildren`.
-- `fromJSON` rejects payloads with more than `1,000,000` entries.
+- `fromJSON` rejects payloads with more than `1,000,000` entries. `toJSON` does not enforce this cap: a tree holding more entries serializes successfully, but the resulting payload cannot be re-imported via `fromJSON`. Split larger datasets before export.
 
 ---
 
@@ -649,6 +669,18 @@ const localInstance = new ConcurrentInMemoryBTree<number, string>({
 await localInstance.put(1, 'one');
 await localInstance.sync(); // explicitly pull latest state
 const value = await localInstance.get(1);
+```
+
+**`syncThenRead(fn)`** -- for read-heavy batches, sync once and run many reads against the local tree within a single exclusive lock, instead of paying a store round-trip per read. It works in both `'strong'` and `'local'` read modes (it always syncs first). Do not mutate the tree inside the callback:
+
+```ts
+const total = await instanceA.syncThenRead((tree) => {
+  let sum = 0;
+  tree.forEachRange(0, 100, (entry) => {
+    sum += entry.value.length;
+  });
+  return sum;
+});
 ```
 
 ```ts
@@ -847,44 +879,45 @@ new InMemoryBTree<TKey, TValue>(config: InMemoryBTreeConfig<TKey>)
 
 Exposes `InMemoryBTree` methods as async equivalents returning `Promise`. Writes coordinate through the shared store; reads sync before returning when `readMode` is `'strong'` (the default). When `readMode` is `'local'`, reads execute against the local tree without syncing.
 
-| Method                   | Signature                                                                                          | Description                                                   |
-| ------------------------ | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `sync`                   | `() => Promise<void>`                                                                              | Fetch and apply the latest log entries from the shared store. |
-| `put`                    | `(key: TKey, value: TValue) => Promise<EntryId>`                                                   | Insert with optimistic concurrency.                           |
-| `putMany`                | `(entries: readonly { key: TKey; value: TValue }[]) => Promise<EntryId[]>`                         | Batch insert with optimistic concurrency.                     |
-| `remove`                 | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                         | Remove the first matching entry by key.                       |
-| `removeById`             | `(entryId: EntryId) => Promise<BTreeEntry<TKey, TValue> \| null>`                                  | Remove a specific entry by ID.                                |
-| `peekById`               | `(entryId: EntryId) => Promise<BTreeEntry<TKey, TValue> \| null>`                                  | Look up an entry by ID (syncs first).                         |
-| `updateById`             | `(entryId: EntryId, value: TValue) => Promise<BTreeEntry<TKey, TValue> \| null>`                   | Update an entry by ID with optimistic concurrency.            |
-| `popFirst`               | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                                  | Remove and return the smallest entry.                         |
-| `popLast`                | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                                  | Remove and return the largest entry.                          |
-| `deleteRange`            | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => Promise<number>`                         | Delete entries in range with optimistic concurrency.          |
-| `clear`                  | `() => Promise<void>`                                                                              | Remove all entries with optimistic concurrency.               |
-| `peekFirst`              | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                                  | Return the smallest entry (syncs first).                      |
-| `peekLast`               | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                                  | Return the largest entry (syncs first).                       |
-| `findFirst`              | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                         | Return the first entry matching key (syncs first).            |
-| `findLast`               | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                         | Return the last entry matching key (syncs first).             |
-| `get`                    | `(key: TKey) => Promise<TValue \| null>`                                                           | Return value by key (syncs first).                            |
-| `hasKey`                 | `(key: TKey) => Promise<boolean>`                                                                  | Check key existence (syncs first).                            |
-| `count`                  | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => Promise<number>`                         | Count entries in range (syncs first).                         |
-| `range`                  | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => Promise<BTreeEntry<TKey, TValue>[]>`     | Range query (syncs first).                                    |
-| `nextHigherKey`          | `(key: TKey) => Promise<TKey \| null>`                                                             | Next key strictly greater (syncs first).                      |
-| `nextLowerKey`           | `(key: TKey) => Promise<TKey \| null>`                                                             | Next key strictly less (syncs first).                         |
-| `getPairOrNextLower`     | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                         | Exact match or next lower (syncs first).                      |
-| `entries`                | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                        | Return all entries as array (syncs first).                    |
-| `entriesReversed`        | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                        | Return all entries in reverse as array (syncs first).         |
-| `keys`                   | `() => Promise<TKey[]>`                                                                            | Return all keys as array (syncs first).                       |
-| `values`                 | `() => Promise<TValue[]>`                                                                          | Return all values as array (syncs first).                     |
-| `forEach`                | `(callback: (entry: BTreeEntry<TKey, TValue>) => void) => Promise<void>`                           | Iterate all entries (syncs first).                            |
-| `forEachRange`           | `(startKey, endKey, callback, options?) => Promise<void>`                                          | Iterate entries in range (syncs first).                       |
-| `snapshot`               | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                        | Return all entries (syncs first).                             |
-| `size`                   | `() => Promise<number>`                                                                            | Return entry count (syncs first).                             |
-| `getStats`               | `() => Promise<BTreeStats>`                                                                        | Return structural statistics (syncs first).                   |
-| `assertInvariants`       | `() => Promise<void>`                                                                              | Assert structural integrity (syncs first).                    |
-| `clone`                  | `() => Promise<InMemoryBTree<TKey, TValue>>`                                                       | Return an independent local copy (syncs first).               |
-| `toJSON`                 | `() => Promise<BTreeJSON<TKey, TValue>>`                                                           | Serialize to JSON (syncs first).                              |
-| `fromJSON` (static)      | `(json: BTreeJSON<TKey, TValue>, compareKeys: KeyComparator<TKey>) => InMemoryBTree<TKey, TValue>` | Deserialize from JSON (returns local tree).                   |
-| `[Symbol.asyncIterator]` | `() => AsyncIterableIterator<BTreeEntry<TKey, TValue>>`                                            | Async iteration over all entries (syncs first).               |
+| Method                   | Signature                                                                                          | Description                                                                |
+| ------------------------ | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `sync`                   | `() => Promise<void>`                                                                              | Fetch and apply the latest log entries from the shared store.              |
+| `syncThenRead`           | `<TResult>(fn: (tree: InMemoryBTree<TKey, TValue>) => TResult) => Promise<TResult>`                | Sync once, then run `fn` against the local tree within one exclusive lock. |
+| `put`                    | `(key: TKey, value: TValue) => Promise<EntryId>`                                                   | Insert with optimistic concurrency.                                        |
+| `putMany`                | `(entries: readonly { key: TKey; value: TValue }[]) => Promise<EntryId[]>`                         | Batch insert with optimistic concurrency.                                  |
+| `remove`                 | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                         | Remove the first matching entry by key.                                    |
+| `removeById`             | `(entryId: EntryId) => Promise<BTreeEntry<TKey, TValue> \| null>`                                  | Remove a specific entry by ID.                                             |
+| `peekById`               | `(entryId: EntryId) => Promise<BTreeEntry<TKey, TValue> \| null>`                                  | Look up an entry by ID (syncs first).                                      |
+| `updateById`             | `(entryId: EntryId, value: TValue) => Promise<BTreeEntry<TKey, TValue> \| null>`                   | Update an entry by ID with optimistic concurrency.                         |
+| `popFirst`               | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                                  | Remove and return the smallest entry.                                      |
+| `popLast`                | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                                  | Remove and return the largest entry.                                       |
+| `deleteRange`            | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => Promise<number>`                         | Delete entries in range with optimistic concurrency.                       |
+| `clear`                  | `() => Promise<void>`                                                                              | Remove all entries with optimistic concurrency.                            |
+| `peekFirst`              | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                                  | Return the smallest entry (syncs first).                                   |
+| `peekLast`               | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                                  | Return the largest entry (syncs first).                                    |
+| `findFirst`              | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                         | Return the first entry matching key (syncs first).                         |
+| `findLast`               | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                         | Return the last entry matching key (syncs first).                          |
+| `get`                    | `(key: TKey) => Promise<TValue \| null>`                                                           | Return value by key (syncs first).                                         |
+| `hasKey`                 | `(key: TKey) => Promise<boolean>`                                                                  | Check key existence (syncs first).                                         |
+| `count`                  | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => Promise<number>`                         | Count entries in range (syncs first).                                      |
+| `range`                  | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => Promise<BTreeEntry<TKey, TValue>[]>`     | Range query (syncs first).                                                 |
+| `nextHigherKey`          | `(key: TKey) => Promise<TKey \| null>`                                                             | Next key strictly greater (syncs first).                                   |
+| `nextLowerKey`           | `(key: TKey) => Promise<TKey \| null>`                                                             | Next key strictly less (syncs first).                                      |
+| `getPairOrNextLower`     | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                         | Exact match or next lower (syncs first).                                   |
+| `entries`                | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                        | Return all entries as array (syncs first).                                 |
+| `entriesReversed`        | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                        | Return all entries in reverse as array (syncs first).                      |
+| `keys`                   | `() => Promise<TKey[]>`                                                                            | Return all keys as array (syncs first).                                    |
+| `values`                 | `() => Promise<TValue[]>`                                                                          | Return all values as array (syncs first).                                  |
+| `forEach`                | `(callback: (entry: BTreeEntry<TKey, TValue>) => void) => Promise<void>`                           | Iterate all entries (syncs first).                                         |
+| `forEachRange`           | `(startKey, endKey, callback, options?) => Promise<void>`                                          | Iterate entries in range (syncs first).                                    |
+| `snapshot`               | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                        | Return all entries (syncs first).                                          |
+| `size`                   | `() => Promise<number>`                                                                            | Return entry count (syncs first).                                          |
+| `getStats`               | `() => Promise<BTreeStats>`                                                                        | Return structural statistics (syncs first).                                |
+| `assertInvariants`       | `() => Promise<void>`                                                                              | Assert structural integrity (syncs first).                                 |
+| `clone`                  | `() => Promise<InMemoryBTree<TKey, TValue>>`                                                       | Return an independent local copy (syncs first).                            |
+| `toJSON`                 | `() => Promise<BTreeJSON<TKey, TValue>>`                                                           | Serialize to JSON (syncs first).                                           |
+| `fromJSON` (static)      | `(json: BTreeJSON<TKey, TValue>, compareKeys: KeyComparator<TKey>) => InMemoryBTree<TKey, TValue>` | Deserialize from JSON (returns local tree).                                |
+| `[Symbol.asyncIterator]` | `() => AsyncIterableIterator<BTreeEntry<TKey, TValue>>`                                            | Async iteration over all entries (syncs first).                            |
 
 **Constructor:**
 
@@ -894,26 +927,27 @@ new ConcurrentInMemoryBTree<TKey, TValue>(config: ConcurrentInMemoryBTreeConfig<
 
 ### Exported Types
 
-| Type                                          | Description                                                                                                                                                                         |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `EntryId`                                     | Branded `number` identifying a specific entry.                                                                                                                                      |
-| `BTreeEntry<TKey, TValue>`                    | `{ entryId: EntryId; key: TKey; value: TValue }`                                                                                                                                    |
-| `BTreeJSON<TKey, TValue>`                     | Versioned JSON-serializable payload produced by `toJSON()` and consumed by `fromJSON()`.                                                                                            |
-| `BTreeStats`                                  | `{ height: number; leafCount: number; branchCount: number; entryCount: number }`                                                                                                    |
-| `KeyComparator<TKey>`                         | `(left: TKey, right: TKey) => number`                                                                                                                                               |
-| `DuplicateKeyPolicy`                          | `'allow' \| 'reject' \| 'replace'`                                                                                                                                                  |
-| `RangeBounds`                                 | `{ lowerBound?: 'inclusive' \| 'exclusive'; upperBound?: 'inclusive' \| 'exclusive' }`                                                                                              |
-| `InMemoryBTreeConfig<TKey>`                   | `{ compareKeys: KeyComparator<TKey>; maxLeafEntries?: number; maxBranchChildren?: number; duplicateKeys?: DuplicateKeyPolicy; enableEntryIdLookup?: boolean; autoScale?: boolean }` |
-| `ReadMode`                                    | `'strong' \| 'local'`                                                                                                                                                               |
-| `ConcurrentInMemoryBTreeConfig<TKey, TValue>` | Extends `InMemoryBTreeConfig<TKey>` with `store: SharedTreeStore<TKey, TValue>`, `maxRetries?: number`, `maxSyncMutationsPerBatch?: number`, and `readMode?: ReadMode`.             |
-| `SharedTreeStore<TKey, TValue>`               | Interface with `getLogEntriesSince(version)` and `append(expectedVersion, mutations)`.                                                                                              |
-| `SharedTreeLog<TKey, TValue>`                 | `{ version: bigint; mutations: BTreeMutation<TKey, TValue>[] }`                                                                                                                     |
-| `BTreeMutation<TKey, TValue>`                 | Discriminated union: `init`, `put`, `putMany`, `remove`, `removeById`, `updateById`, `popFirst`, `popLast`, `deleteRange`, `clear`.                                                 |
-| `BTreeValidationError`                        | Error thrown for comparator or config violations.                                                                                                                                   |
-| `BTreeInvariantError`                         | Error thrown for tree structural integrity violations.                                                                                                                              |
-| `BTreeConcurrencyError`                       | Error thrown for concurrency conflicts or store contract violations.                                                                                                                |
+| Type                                          | Description                                                                                                                                                                                                                        |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EntryId`                                     | Branded `number` identifying a specific entry.                                                                                                                                                                                     |
+| `BTreeEntry<TKey, TValue>`                    | `{ entryId: EntryId; key: TKey; value: TValue }`                                                                                                                                                                                   |
+| `BTreeJSON<TKey, TValue>`                     | Versioned JSON-serializable payload produced by `toJSON()` and consumed by `fromJSON()`.                                                                                                                                           |
+| `BTreeStats`                                  | `{ height: number; leafCount: number; branchCount: number; entryCount: number }`                                                                                                                                                   |
+| `KeyComparator<TKey>`                         | `(left: TKey, right: TKey) => number`                                                                                                                                                                                              |
+| `DuplicateKeyPolicy`                          | `'allow' \| 'reject' \| 'replace'`                                                                                                                                                                                                 |
+| `DeleteRebalancePolicy`                       | `'standard' \| 'lazy'`                                                                                                                                                                                                             |
+| `RangeBounds`                                 | `{ lowerBound?: 'inclusive' \| 'exclusive'; upperBound?: 'inclusive' \| 'exclusive' }`                                                                                                                                             |
+| `InMemoryBTreeConfig<TKey>`                   | `{ compareKeys: KeyComparator<TKey>; maxLeafEntries?: number; maxBranchChildren?: number; duplicateKeys?: DuplicateKeyPolicy; enableEntryIdLookup?: boolean; autoScale?: boolean; deleteRebalancePolicy?: DeleteRebalancePolicy }` |
+| `ReadMode`                                    | `'strong' \| 'local'`                                                                                                                                                                                                              |
+| `ConcurrentInMemoryBTreeConfig<TKey, TValue>` | Extends `InMemoryBTreeConfig<TKey>` with `store: SharedTreeStore<TKey, TValue>`, `maxRetries?: number`, `maxSyncMutationsPerBatch?: number`, and `readMode?: ReadMode`.                                                            |
+| `SharedTreeStore<TKey, TValue>`               | Interface with `getLogEntriesSince(version)` and `append(expectedVersion, mutations)`.                                                                                                                                             |
+| `SharedTreeLog<TKey, TValue>`                 | `{ version: bigint; mutations: BTreeMutation<TKey, TValue>[] }`                                                                                                                                                                    |
+| `BTreeMutation<TKey, TValue>`                 | Discriminated union: `init`, `put`, `putMany`, `remove`, `removeById`, `updateById`, `popFirst`, `popLast`, `deleteRange`, `clear`.                                                                                                |
+| `BTreeValidationError`                        | Error thrown for comparator or config violations.                                                                                                                                                                                  |
+| `BTreeInvariantError`                         | Error thrown for tree structural integrity violations.                                                                                                                                                                             |
+| `BTreeConcurrencyError`                       | Error thrown for concurrency conflicts or store contract violations.                                                                                                                                                               |
 
-> **Subpath exports:** The `/core` subpath (`@frostpillar/frostpillar-btree/core`) exports only single-process types: `InMemoryBTree`, `EntryId`, `BTreeEntry`, `BTreeJSON`, `BTreeStats`, `KeyComparator`, `DuplicateKeyPolicy`, `RangeBounds`, `InMemoryBTreeConfig`, `BTreeValidationError`, and `BTreeInvariantError`. Concurrency-related exports (`ConcurrentInMemoryBTree`, `ConcurrentInMemoryBTreeConfig`, `ReadMode`, `SharedTreeStore`, `SharedTreeLog`, `BTreeMutation`, `BTreeConcurrencyError`) are available only from the main entry point.
+> **Subpath exports:** The `/core` subpath (`@frostpillar/frostpillar-btree/core`) exports only single-process types: `InMemoryBTree`, `EntryId`, `BTreeEntry`, `BTreeJSON`, `BTreeStats`, `KeyComparator`, `DuplicateKeyPolicy`, `DeleteRebalancePolicy`, `RangeBounds`, `InMemoryBTreeConfig`, `BTreeValidationError`, and `BTreeInvariantError`. Concurrency-related exports (`ConcurrentInMemoryBTree`, `ConcurrentInMemoryBTreeConfig`, `ReadMode`, `SharedTreeStore`, `SharedTreeLog`, `BTreeMutation`, `BTreeConcurrencyError`) are available only from the main entry point.
 
 ---
 

@@ -359,6 +359,8 @@ tree.getPairOrNextLower(10); // { entryId: ..., key: 10, value: 'a' }（完全�
 
 #### イテレーション
 
+> **注意:** イテレータはライブなツリーを読み取ります。反復中（`entries()`、`entriesReversed()`、`keys()`、`values()`、`forEach`、`for...of`）にツリーを変更した場合、反復中エントリの包含や訪問順序は実装依存です。反復しながら変更する必要がある場合は、先に `snapshot()` を取得してください。
+
 **`entries()`** -- スナップショット配列を生成せず、昇順でエントリを遅延イテレーションします。
 
 ```ts
@@ -481,6 +483,24 @@ const tree = new InMemoryBTree<number, string>({
 | `'reject'`                | キーが既に存在する場合、`BTreeValidationError` をスローする。 | 一意インデックス / セット                  |
 | `'allow'`                 | 同一キーの複数エントリを許可し、挿入順で並べる。              | マルチマップ / イベントログ / 優先度キュー |
 
+#### 削除リバランスポリシー
+
+`deleteRebalancePolicy` オプションで、削除時のリーフのリバランス頻度を制御できます。
+
+```ts
+const tree = new InMemoryBTree<number, string>({
+  compareKeys: (a, b) => a - b,
+  deleteRebalancePolicy: 'lazy', // デフォルトは 'standard'
+});
+```
+
+| ポリシー                   | 動作                                                                                                       | 用途                                   |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `'standard'`（デフォルト） | 削除でリーフが最小占有数（`ceil(maxLeafEntries / 2)`）を下回った時点でリバランスする。                     | 読み書きバランス型ワークロード         |
+| `'lazy'`                   | リーフが `max(1, ceil(最小占有数 / 4))` を下回るまでリバランスを遅延し、大量削除時のマージ回数を削減する。 | 大量削除ワークロード、`autoScale` 併用 |
+
+緩和されたしきい値はリーフのリバランス判定にのみ適用され、ブランチのリバランスは常に標準のしきい値を使用します。ポリシーが `'lazy'` の場合、`assertInvariants()` は緩和されたしきい値を満たすリーフを許容します。ポリシーは `clone()` と `toJSON()` / `fromJSON()` で維持されます。
+
 #### 動作に関する注意事項
 
 - `range(start, end)` はデフォルトで両端を含みます。`RangeBounds` で除外境界を指定できます。`start > end` の場合は `[]` を返します。
@@ -499,7 +519,7 @@ const tree = new InMemoryBTree<number, string>({
   | 1,000,000+ | 512            | 256               |
 
 - `autoScale` は `maxLeafEntries` / `maxBranchChildren` の明示指定と同時には使えません。
-- `fromJSON` は `1,000,000` 件を超えるエントリを含むペイロードを拒否します。
+- `fromJSON` は `1,000,000` 件を超えるエントリを含むペイロードを拒否します。`toJSON` はこの上限を強制しません。上限を超えるツリーもシリアライズ自体は成功しますが、生成されたペイロードは `fromJSON` で再インポートできません。大きなデータセットはエクスポート前に分割してください。
 
 ---
 
@@ -649,6 +669,18 @@ const localInstance = new ConcurrentInMemoryBTree<number, string>({
 await localInstance.put(1, 'one');
 await localInstance.sync(); // 明示的に最新状態を取得
 const value = await localInstance.get(1);
+```
+
+**`syncThenRead(fn)`** -- 読み取り中心のバッチ処理向けに、1 回の同期の後、単一の排他ロック内でローカルツリーに対して複数の読み取りを実行します。読み取りごとにストアへの往復コストを払う必要がなくなります。`readMode` が `'strong'` / `'local'` のどちらでも動作します（常に先に同期します）。コールバック内でツリーを変更しないでください。
+
+```ts
+const total = await instanceA.syncThenRead((tree) => {
+  let sum = 0;
+  tree.forEachRange(0, 100, (entry) => {
+    sum += entry.value.length;
+  });
+  return sum;
+});
 ```
 
 ```ts
@@ -847,44 +879,45 @@ new InMemoryBTree<TKey, TValue>(config: InMemoryBTreeConfig<TKey>)
 
 `InMemoryBTree` メソッドを `Promise` を返す非同期版として提供します。書き込みは shared store を介して協調し、`readMode` が `'strong'`（デフォルト）の場合は読み取り前に同期します。`readMode` が `'local'` の場合、読み取りは同期なしでローカルツリーに対して実行されます。
 
-| メソッド                 | シグネチャ                                                                                         | 説明                                                  |
-| ------------------------ | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `sync`                   | `() => Promise<void>`                                                                              | shared store の最新ログを取得して適用する。           |
-| `put`                    | `(key: TKey, value: TValue) => Promise<EntryId>`                                                   | 楽観的並行制御で挿入する。                            |
-| `putMany`                | `(entries: readonly { key: TKey; value: TValue }[]) => Promise<EntryId[]>`                         | 楽観的並行制御で一括挿入する。                        |
-| `remove`                 | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                         | 指定キーに一致する最初のエントリを削除する。          |
-| `removeById`             | `(entryId: EntryId) => Promise<BTreeEntry<TKey, TValue> \| null>`                                  | ID でエントリを削除する。                             |
-| `peekById`               | `(entryId: EntryId) => Promise<BTreeEntry<TKey, TValue> \| null>`                                  | ID でエントリを参照する（事前に同期）。               |
-| `updateById`             | `(entryId: EntryId, value: TValue) => Promise<BTreeEntry<TKey, TValue> \| null>`                   | 楽観的並行制御で ID のエントリ値を更新する。          |
-| `popFirst`               | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                                  | 最小キーのエントリを削除して返す。                    |
-| `popLast`                | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                                  | 最大キーのエントリを削除して返す。                    |
-| `deleteRange`            | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => Promise<number>`                         | 楽観的並行制御で範囲内のエントリを削除する。          |
-| `clear`                  | `() => Promise<void>`                                                                              | 楽観的並行制御で全エントリを削除する。                |
-| `peekFirst`              | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                                  | 最小キーのエントリを返す（事前に同期）。              |
-| `peekLast`               | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                                  | 最大キーのエントリを返す（事前に同期）。              |
-| `findFirst`              | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                         | キーに一致する最初のエントリを返す（事前に同期）。    |
-| `findLast`               | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                         | キーに一致する最後のエントリを返す（事前に同期）。    |
-| `get`                    | `(key: TKey) => Promise<TValue \| null>`                                                           | キーの値を取得する（事前に同期）。                    |
-| `hasKey`                 | `(key: TKey) => Promise<boolean>`                                                                  | キーの存在を確認する（事前に同期）。                  |
-| `count`                  | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => Promise<number>`                         | 範囲内のエントリ数を返す（事前に同期）。              |
-| `range`                  | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => Promise<BTreeEntry<TKey, TValue>[]>`     | 範囲クエリ（事前に同期）。                            |
-| `nextHigherKey`          | `(key: TKey) => Promise<TKey \| null>`                                                             | 指定キーより大きい次のキー（事前に同期）。            |
-| `nextLowerKey`           | `(key: TKey) => Promise<TKey \| null>`                                                             | 指定キーより小さい次のキー（事前に同期）。            |
-| `getPairOrNextLower`     | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                         | 一致または次に小さいエントリ（事前に同期）。          |
-| `entries`                | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                        | 全エントリを配列で返す（事前に同期）。                |
-| `entriesReversed`        | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                        | 全エントリを逆順で配列として返す（事前に同期）。      |
-| `keys`                   | `() => Promise<TKey[]>`                                                                            | 全キーを配列で返す（事前に同期）。                    |
-| `values`                 | `() => Promise<TValue[]>`                                                                          | 全値を配列で返す（事前に同期）。                      |
-| `forEach`                | `(callback: (entry: BTreeEntry<TKey, TValue>) => void) => Promise<void>`                           | 全エントリを反復する（事前に同期）。                  |
-| `forEachRange`           | `(startKey, endKey, callback, options?) => Promise<void>`                                          | 範囲内のエントリを反復する（事前に同期）。            |
-| `snapshot`               | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                        | 全エントリを返す（事前に同期）。                      |
-| `size`                   | `() => Promise<number>`                                                                            | エントリ数を返す（事前に同期）。                      |
-| `getStats`               | `() => Promise<BTreeStats>`                                                                        | 構造統計を返す（事前に同期）。                        |
-| `assertInvariants`       | `() => Promise<void>`                                                                              | 構造的な整合性を検証する（事前に同期）。              |
-| `clone`                  | `() => Promise<InMemoryBTree<TKey, TValue>>`                                                       | 独立したローカルコピーを返す（事前に同期）。          |
-| `toJSON`                 | `() => Promise<BTreeJSON<TKey, TValue>>`                                                           | JSON にシリアライズする（事前に同期）。               |
-| `fromJSON` (static)      | `(json: BTreeJSON<TKey, TValue>, compareKeys: KeyComparator<TKey>) => InMemoryBTree<TKey, TValue>` | JSON からデシリアライズする（ローカルツリーを返す）。 |
-| `[Symbol.asyncIterator]` | `() => AsyncIterableIterator<BTreeEntry<TKey, TValue>>`                                            | 全エントリを非同期反復する（事前に同期）。            |
+| メソッド                 | シグネチャ                                                                                         | 説明                                                                         |
+| ------------------------ | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `sync`                   | `() => Promise<void>`                                                                              | shared store の最新ログを取得して適用する。                                  |
+| `syncThenRead`           | `<TResult>(fn: (tree: InMemoryBTree<TKey, TValue>) => TResult) => Promise<TResult>`                | 1 回同期した後、単一の排他ロック内でローカルツリーに対して `fn` を実行する。 |
+| `put`                    | `(key: TKey, value: TValue) => Promise<EntryId>`                                                   | 楽観的並行制御で挿入する。                                                   |
+| `putMany`                | `(entries: readonly { key: TKey; value: TValue }[]) => Promise<EntryId[]>`                         | 楽観的並行制御で一括挿入する。                                               |
+| `remove`                 | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                         | 指定キーに一致する最初のエントリを削除する。                                 |
+| `removeById`             | `(entryId: EntryId) => Promise<BTreeEntry<TKey, TValue> \| null>`                                  | ID でエントリを削除する。                                                    |
+| `peekById`               | `(entryId: EntryId) => Promise<BTreeEntry<TKey, TValue> \| null>`                                  | ID でエントリを参照する（事前に同期）。                                      |
+| `updateById`             | `(entryId: EntryId, value: TValue) => Promise<BTreeEntry<TKey, TValue> \| null>`                   | 楽観的並行制御で ID のエントリ値を更新する。                                 |
+| `popFirst`               | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                                  | 最小キーのエントリを削除して返す。                                           |
+| `popLast`                | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                                  | 最大キーのエントリを削除して返す。                                           |
+| `deleteRange`            | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => Promise<number>`                         | 楽観的並行制御で範囲内のエントリを削除する。                                 |
+| `clear`                  | `() => Promise<void>`                                                                              | 楽観的並行制御で全エントリを削除する。                                       |
+| `peekFirst`              | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                                  | 最小キーのエントリを返す（事前に同期）。                                     |
+| `peekLast`               | `() => Promise<BTreeEntry<TKey, TValue> \| null>`                                                  | 最大キーのエントリを返す（事前に同期）。                                     |
+| `findFirst`              | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                         | キーに一致する最初のエントリを返す（事前に同期）。                           |
+| `findLast`               | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                         | キーに一致する最後のエントリを返す（事前に同期）。                           |
+| `get`                    | `(key: TKey) => Promise<TValue \| null>`                                                           | キーの値を取得する（事前に同期）。                                           |
+| `hasKey`                 | `(key: TKey) => Promise<boolean>`                                                                  | キーの存在を確認する（事前に同期）。                                         |
+| `count`                  | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => Promise<number>`                         | 範囲内のエントリ数を返す（事前に同期）。                                     |
+| `range`                  | `(startKey: TKey, endKey: TKey, options?: RangeBounds) => Promise<BTreeEntry<TKey, TValue>[]>`     | 範囲クエリ（事前に同期）。                                                   |
+| `nextHigherKey`          | `(key: TKey) => Promise<TKey \| null>`                                                             | 指定キーより大きい次のキー（事前に同期）。                                   |
+| `nextLowerKey`           | `(key: TKey) => Promise<TKey \| null>`                                                             | 指定キーより小さい次のキー（事前に同期）。                                   |
+| `getPairOrNextLower`     | `(key: TKey) => Promise<BTreeEntry<TKey, TValue> \| null>`                                         | 一致または次に小さいエントリ（事前に同期）。                                 |
+| `entries`                | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                        | 全エントリを配列で返す（事前に同期）。                                       |
+| `entriesReversed`        | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                        | 全エントリを逆順で配列として返す（事前に同期）。                             |
+| `keys`                   | `() => Promise<TKey[]>`                                                                            | 全キーを配列で返す（事前に同期）。                                           |
+| `values`                 | `() => Promise<TValue[]>`                                                                          | 全値を配列で返す（事前に同期）。                                             |
+| `forEach`                | `(callback: (entry: BTreeEntry<TKey, TValue>) => void) => Promise<void>`                           | 全エントリを反復する（事前に同期）。                                         |
+| `forEachRange`           | `(startKey, endKey, callback, options?) => Promise<void>`                                          | 範囲内のエントリを反復する（事前に同期）。                                   |
+| `snapshot`               | `() => Promise<BTreeEntry<TKey, TValue>[]>`                                                        | 全エントリを返す（事前に同期）。                                             |
+| `size`                   | `() => Promise<number>`                                                                            | エントリ数を返す（事前に同期）。                                             |
+| `getStats`               | `() => Promise<BTreeStats>`                                                                        | 構造統計を返す（事前に同期）。                                               |
+| `assertInvariants`       | `() => Promise<void>`                                                                              | 構造的な整合性を検証する（事前に同期）。                                     |
+| `clone`                  | `() => Promise<InMemoryBTree<TKey, TValue>>`                                                       | 独立したローカルコピーを返す（事前に同期）。                                 |
+| `toJSON`                 | `() => Promise<BTreeJSON<TKey, TValue>>`                                                           | JSON にシリアライズする（事前に同期）。                                      |
+| `fromJSON` (static)      | `(json: BTreeJSON<TKey, TValue>, compareKeys: KeyComparator<TKey>) => InMemoryBTree<TKey, TValue>` | JSON からデシリアライズする（ローカルツリーを返す）。                        |
+| `[Symbol.asyncIterator]` | `() => AsyncIterableIterator<BTreeEntry<TKey, TValue>>`                                            | 全エントリを非同期反復する（事前に同期）。                                   |
 
 **コンストラクタ：**
 
@@ -894,26 +927,27 @@ new ConcurrentInMemoryBTree<TKey, TValue>(config: ConcurrentInMemoryBTreeConfig<
 
 ### エクスポートされる型
 
-| 型                                            | 説明                                                                                                                                                                                |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `EntryId`                                     | エントリを識別するブランド型 `number`。                                                                                                                                             |
-| `BTreeEntry<TKey, TValue>`                    | `{ entryId: EntryId; key: TKey; value: TValue }`                                                                                                                                    |
-| `BTreeJSON<TKey, TValue>`                     | `toJSON()` が生成し `fromJSON()` が受け取る、バージョン付き JSON シリアライズ可能なペイロード。                                                                                     |
-| `BTreeStats`                                  | `{ height: number; leafCount: number; branchCount: number; entryCount: number }`                                                                                                    |
-| `KeyComparator<TKey>`                         | `(left: TKey, right: TKey) => number`                                                                                                                                               |
-| `DuplicateKeyPolicy`                          | `'allow' \| 'reject' \| 'replace'`                                                                                                                                                  |
-| `RangeBounds`                                 | `{ lowerBound?: 'inclusive' \| 'exclusive'; upperBound?: 'inclusive' \| 'exclusive' }`                                                                                              |
-| `InMemoryBTreeConfig<TKey>`                   | `{ compareKeys: KeyComparator<TKey>; maxLeafEntries?: number; maxBranchChildren?: number; duplicateKeys?: DuplicateKeyPolicy; enableEntryIdLookup?: boolean; autoScale?: boolean }` |
-| `ReadMode`                                    | `'strong' \| 'local'`                                                                                                                                                               |
-| `ConcurrentInMemoryBTreeConfig<TKey, TValue>` | `InMemoryBTreeConfig<TKey>` を拡張し、`store: SharedTreeStore<TKey, TValue>`、`maxRetries?: number`、`maxSyncMutationsPerBatch?: number`、`readMode?: ReadMode` を追加。            |
-| `SharedTreeStore<TKey, TValue>`               | `getLogEntriesSince(version)` と `append(expectedVersion, mutations)` を持つインターフェース。                                                                                      |
-| `SharedTreeLog<TKey, TValue>`                 | `{ version: bigint; mutations: BTreeMutation<TKey, TValue>[] }`                                                                                                                     |
-| `BTreeMutation<TKey, TValue>`                 | 判別共用体: `init`、`put`、`putMany`、`remove`、`removeById`、`updateById`、`popFirst`、`popLast`、`deleteRange`、`clear`。                                                         |
-| `BTreeValidationError`                        | コンパレータや設定の違反でスローされるエラー。                                                                                                                                      |
-| `BTreeInvariantError`                         | ツリー構造の整合性違反でスローされるエラー。                                                                                                                                        |
-| `BTreeConcurrencyError`                       | 並行処理コンフリクトやストア契約違反でスローされるエラー。                                                                                                                          |
+| 型                                            | 説明                                                                                                                                                                                                                               |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EntryId`                                     | エントリを識別するブランド型 `number`。                                                                                                                                                                                            |
+| `BTreeEntry<TKey, TValue>`                    | `{ entryId: EntryId; key: TKey; value: TValue }`                                                                                                                                                                                   |
+| `BTreeJSON<TKey, TValue>`                     | `toJSON()` が生成し `fromJSON()` が受け取る、バージョン付き JSON シリアライズ可能なペイロード。                                                                                                                                    |
+| `BTreeStats`                                  | `{ height: number; leafCount: number; branchCount: number; entryCount: number }`                                                                                                                                                   |
+| `KeyComparator<TKey>`                         | `(left: TKey, right: TKey) => number`                                                                                                                                                                                              |
+| `DuplicateKeyPolicy`                          | `'allow' \| 'reject' \| 'replace'`                                                                                                                                                                                                 |
+| `DeleteRebalancePolicy`                       | `'standard' \| 'lazy'`                                                                                                                                                                                                             |
+| `RangeBounds`                                 | `{ lowerBound?: 'inclusive' \| 'exclusive'; upperBound?: 'inclusive' \| 'exclusive' }`                                                                                                                                             |
+| `InMemoryBTreeConfig<TKey>`                   | `{ compareKeys: KeyComparator<TKey>; maxLeafEntries?: number; maxBranchChildren?: number; duplicateKeys?: DuplicateKeyPolicy; enableEntryIdLookup?: boolean; autoScale?: boolean; deleteRebalancePolicy?: DeleteRebalancePolicy }` |
+| `ReadMode`                                    | `'strong' \| 'local'`                                                                                                                                                                                                              |
+| `ConcurrentInMemoryBTreeConfig<TKey, TValue>` | `InMemoryBTreeConfig<TKey>` を拡張し、`store: SharedTreeStore<TKey, TValue>`、`maxRetries?: number`、`maxSyncMutationsPerBatch?: number`、`readMode?: ReadMode` を追加。                                                           |
+| `SharedTreeStore<TKey, TValue>`               | `getLogEntriesSince(version)` と `append(expectedVersion, mutations)` を持つインターフェース。                                                                                                                                     |
+| `SharedTreeLog<TKey, TValue>`                 | `{ version: bigint; mutations: BTreeMutation<TKey, TValue>[] }`                                                                                                                                                                    |
+| `BTreeMutation<TKey, TValue>`                 | 判別共用体: `init`、`put`、`putMany`、`remove`、`removeById`、`updateById`、`popFirst`、`popLast`、`deleteRange`、`clear`。                                                                                                        |
+| `BTreeValidationError`                        | コンパレータや設定の違反でスローされるエラー。                                                                                                                                                                                     |
+| `BTreeInvariantError`                         | ツリー構造の整合性違反でスローされるエラー。                                                                                                                                                                                       |
+| `BTreeConcurrencyError`                       | 並行処理コンフリクトやストア契約違反でスローされるエラー。                                                                                                                                                                         |
 
-> **サブパスエクスポート：** `/core` サブパス（`@frostpillar/frostpillar-btree/core`）は単一プロセス向けの型のみエクスポートします: `InMemoryBTree`、`EntryId`、`BTreeEntry`、`BTreeJSON`、`BTreeStats`、`KeyComparator`、`DuplicateKeyPolicy`、`RangeBounds`、`InMemoryBTreeConfig`、`BTreeValidationError`、`BTreeInvariantError`。並行処理関連のエクスポート（`ConcurrentInMemoryBTree`、`ConcurrentInMemoryBTreeConfig`、`ReadMode`、`SharedTreeStore`、`SharedTreeLog`、`BTreeMutation`、`BTreeConcurrencyError`）はメインエントリポイントからのみ利用できます。
+> **サブパスエクスポート：** `/core` サブパス（`@frostpillar/frostpillar-btree/core`）は単一プロセス向けの型のみエクスポートします: `InMemoryBTree`、`EntryId`、`BTreeEntry`、`BTreeJSON`、`BTreeStats`、`KeyComparator`、`DuplicateKeyPolicy`、`DeleteRebalancePolicy`、`RangeBounds`、`InMemoryBTreeConfig`、`BTreeValidationError`、`BTreeInvariantError`。並行処理関連のエクスポート（`ConcurrentInMemoryBTree`、`ConcurrentInMemoryBTreeConfig`、`ReadMode`、`SharedTreeStore`、`SharedTreeLog`、`BTreeMutation`、`BTreeConcurrencyError`）はメインエントリポイントからのみ利用できます。
 
 ---
 
