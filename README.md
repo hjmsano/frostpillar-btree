@@ -494,10 +494,10 @@ const tree = new InMemoryBTree<number, string>({
 });
 ```
 
-| Policy                 | Behavior                                                                                                             | Use case                             |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| `'standard'` (default) | Rebalances a leaf as soon as a delete drops it below the minimum occupancy (`ceil(maxLeafEntries / 2)`).             | Balanced read/write workloads        |
-| `'lazy'`               | Delays rebalancing until a leaf falls below `max(1, ceil(minimum / 4))`, reducing merge churn during mass deletions. | Mass-deletion workloads, `autoScale` |
+| Policy                 | Behavior                                                                                                                       | Use case                             |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------ |
+| `'standard'` (default) | Rebalances a leaf as soon as a delete drops it below the minimum occupancy (`ceil(maxLeafEntries / 2)`).                       | Balanced read/write workloads        |
+| `'lazy'`               | Delays rebalancing until a leaf falls below `max(1, ceil(minimum occupancy / 4))`, reducing merge churn during mass deletions. | Mass-deletion workloads, `autoScale` |
 
 The relaxed threshold applies to the leaf rebalance decision only; branch rebalancing always uses the standard threshold. `assertInvariants()` accepts leaves that satisfy the relaxed threshold when the policy is `'lazy'`. The policy is preserved by `clone()` and `toJSON()` / `fromJSON()`.
 
