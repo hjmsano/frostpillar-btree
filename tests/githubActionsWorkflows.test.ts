@@ -32,11 +32,17 @@ const assertWorkflowContract = (
 const workflowContracts: readonly WorkflowContract[] = [
   {
     fileName: 'ci.yml',
-    testName: 'CI workflow runs quality checks on every push',
+    testName:
+      'CI workflow runs quality checks on main pushes and pull requests',
     assertions: [
       {
-        pattern: /\bon:\s*\n\s*push:\s*(\n|$)/m,
-        message: 'ci.yml must trigger on push.',
+        pattern: /on:\s*\n\s*push:\s*\n\s*branches:\s*\n\s*-\s*["']main["']/m,
+        message: 'ci.yml must trigger on pushes to main.',
+      },
+      {
+        pattern: /^\s*pull_request:\s*$/m,
+        message:
+          'ci.yml must trigger on pull_request so fork PRs receive CI checks.',
       },
       {
         pattern: /uses:\s*actions\/checkout@[a-f0-9]{40}/,
