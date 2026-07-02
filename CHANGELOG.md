@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.9](https://github.com/hjmsano/frostpillar-btree/compare/v0.2.8...v0.2.9) (2026-07-02)
+
+
+### Bug Fixes
+
+* rewrite side-effect imports when deriving .d.cts declarations ([1a8ec32](https://github.com/hjmsano/frostpillar-btree/commit/1a8ec32fd542db6cb23575464d0e35caf727b9b9))
+* ship CommonJS type declarations for node16 module resolution ([932589a](https://github.com/hjmsano/frostpillar-btree/commit/932589a2e5601a68cf892c5c39f6da6d2c0561da))
+
 ## [0.2.8](https://github.com/hjmsano/frostpillar-btree/compare/v0.2.7...v0.2.8) (2026-07-02)
 
 
