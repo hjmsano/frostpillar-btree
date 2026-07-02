@@ -92,6 +92,8 @@ const spliceLeafAndRebalance = <TKey, TValue>(
     leaf !== state.root &&
     leafEntryCount(leaf) < rebalThreshold
   ) {
+    // rebalanceAfterLeafRemoval refreshes ancestor cached keys itself when an
+    // emptied leaf is refilled from its right sibling.
     rebalanceAfterLeafRemoval(state, leaf);
     if (
       leaf.parent !== null &&
@@ -99,14 +101,6 @@ const spliceLeafAndRebalance = <TKey, TValue>(
     )
       break;
     safetyGuard -= 1;
-  }
-  if (
-    leafEmptied &&
-    leafEntryCount(leaf) > 0 &&
-    leaf.parent !== null &&
-    leaf.parent.children[leaf.indexInParent] === leaf
-  ) {
-    updateMinKeyInAncestors(leaf);
   }
   return countAfterSplice;
 };
