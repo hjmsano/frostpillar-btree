@@ -31,7 +31,7 @@ const collectDeclarationFiles = async (directoryPath) => {
 // loaded (the require entry points are the bundled index.cjs / core.cjs).
 const rewriteRelativeSpecifiers = (source) => {
   return source
-    .replace(/(from\s+['"])(\.\.?\/[^'"]*)\.js(['"])/g, '$1$2.cjs$3')
+    .replace(/((?:from|import)\s+['"])(\.\.?\/[^'"]*)\.js(['"])/g, '$1$2.cjs$3')
     .replace(/(import\(\s*['"])(\.\.?\/[^'"]*)\.js(['"]\s*\))/g, '$1$2.cjs$3');
 };
 
