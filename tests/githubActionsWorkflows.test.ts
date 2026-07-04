@@ -6,6 +6,7 @@ import test from 'node:test';
 interface WorkflowAssertion {
   readonly pattern: RegExp;
   readonly message: string;
+  readonly negate?: boolean;
 }
 
 interface WorkflowContract {
@@ -25,7 +26,11 @@ const assertWorkflowContract = (
   assertions: readonly WorkflowAssertion[],
 ): void => {
   for (const assertion of assertions) {
-    assert.match(workflowText, assertion.pattern, assertion.message);
+    if (assertion.negate === true) {
+      assert.doesNotMatch(workflowText, assertion.pattern, assertion.message);
+    } else {
+      assert.match(workflowText, assertion.pattern, assertion.message);
+    }
   }
 };
 
@@ -85,6 +90,12 @@ const workflowContracts: readonly WorkflowContract[] = [
         pattern:
           /permissions:\s*\n(?:\s+[\w-]+:\s*\w+\n)*\s*pull-requests:\s*write/m,
         message: 'ci-release.yml must request pull-requests: write permission.',
+      },
+      {
+        pattern:
+          /permissions:\s*\n(?:\s+[\w-]+:\s*\w+\n)*\s*id-token:\s*write/m,
+        message:
+          'ci-release.yml must request id-token: write permission for NPM Trusted Publisher OIDC authentication.',
       },
       {
         pattern: /uses:\s*googleapis\/release-please-action@[a-f0-9]{40}/,
@@ -157,6 +168,18 @@ const workflowContracts: readonly WorkflowContract[] = [
         pattern: /run:\s*pnpm publish --no-git-checks --access public/,
         message:
           'ci-release.yml must publish with pnpm publish --no-git-checks --access public.',
+      },
+      {
+        pattern: /NODE_AUTH_TOKEN/,
+        message:
+          'ci-release.yml must not contain NODE_AUTH_TOKEN; publish authenticates via NPM Trusted Publisher (OIDC).',
+        negate: true,
+      },
+      {
+        pattern: /\bNPM_TOKEN\b/,
+        message:
+          'ci-release.yml must not contain NPM_TOKEN; publish authenticates via NPM Trusted Publisher (OIDC).',
+        negate: true,
       },
     ],
   },
